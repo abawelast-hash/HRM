@@ -34,7 +34,7 @@ enableXsrfProtection = false
 maxUploadSize = 200
 
 # If set, this enables a headless mode
-headless = false
+headless = true
 
 [runner]
 # Allows you to type a variable or string by itself in a single line of
