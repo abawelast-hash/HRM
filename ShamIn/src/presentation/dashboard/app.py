@@ -237,6 +237,7 @@ with st.sidebar:
         [
             "🏠 نظرة عامة",
             "📡 مصادر البيانات",
+            "➕ إدارة المصادر",
             "💱 أسعار الصرف",
             "🤖 نماذج التنبؤ",
             "📰 الأحداث والأخبار",
@@ -549,6 +550,406 @@ elif page == "📡 مصادر البيانات":
         with col4:
             st.markdown(status_badge("healthy"), unsafe_allow_html=True)
         st.markdown("<hr style='border-color:#1e293b; margin:5px 0;'>", unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════
+# صفحة: إدارة المصادر
+# ══════════════════════════════════════════════════════════
+
+elif page == "➕ إدارة المصادر":
+    st.markdown(f"""
+    <h1 style="text-align:right;">
+        ➕ إدارة المصادر
+        {info_tip("إضافة وتعديل وحذف مصادر البيانات بشكل ديناميكي. يمكنك إضافة أي مصدر RSS أو موقع ويب أو قناة تلغرام واختباره قبل التفعيل.")}
+    </h1>
+    """, unsafe_allow_html=True)
+
+    # علامات تبويب لأنواع المصادر
+    tab1, tab2, tab3 = st.tabs(["📰 مصادر RSS", "💰 مواقع الأسعار", "📱 قنوات تلغرام"])
+
+    # ────────────────────────────────────────────────────────
+    # Tab 1: مصادر RSS
+    # ────────────────────────────────────────────────────────
+    with tab1:
+        st.markdown(f"""
+        <div class="section-header" style="margin-top:15px;">
+            <h2>إضافة مصدر RSS جديد</h2>
+            {info_tip("أضف أي خلاصة RSS لموقع إخباري. سيتم جمع المقالات تلقائياً كل 15 دقيقة وتحليلها لاستخراج الأحداث المؤثرة على سعر الصرف.")}
+        </div>
+        """, unsafe_allow_html=True)
+
+        # نموذج إضافة مصدر RSS
+        with st.form("add_rss_source", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                rss_name = st.text_input(
+                    "اسم المصدر",
+                    placeholder="مثال: موقع إخباري سوري",
+                    help="اسم مميز للمصدر"
+                )
+                rss_url = st.text_input(
+                    "رابط RSS",
+                    placeholder="https://example.com/feed",
+                    help="عنوان URL الكامل لخلاصة RSS"
+                )
+            
+            with col2:
+                rss_category = st.selectbox(
+                    "التصنيف",
+                    ["أخبار اقتصادية", "أخبار سياسية", "أخبار عامة", "أخبار رسمية"],
+                    help="تصنيف نوع الأخبار"
+                )
+                rss_language = st.selectbox(
+                    "اللغة",
+                    ["ar", "en", "fr"],
+                    format_func=lambda x: {"ar": "العربية", "en": "الإنجليزية", "fr": "الفرنسية"}[x],
+                    help="لغة المحتوى"
+                )
+            
+            rss_enabled = st.checkbox("تفعيل المصدر فور الإضافة", value=True)
+            
+            col_test, col_submit = st.columns([1, 1])
+            with col_test:
+                test_rss = st.form_submit_button("🧪 اختبار المصدر", type="secondary", use_container_width=True)
+            with col_submit:
+                submit_rss = st.form_submit_button("➕ إضافة المصدر", type="primary", use_container_width=True)
+
+        # معالجة الاختبار
+        if test_rss and rss_url:
+            with st.spinner("جاري اختبار المصدر..."):
+                try:
+                    from src.ingestion.collectors.rss_collector import RSSCollector
+                    collector = RSSCollector(storage_db=False)
+                    result = collector.collect_feed({
+                        'name': rss_name or 'test',
+                        'url': rss_url,
+                        'category': rss_category,
+                        'language': rss_language
+                    })
+                    collector.close()
+                    
+                    if result['success']:
+                        st.success(f"✅ نجح الاختبار! تم العثور على {result['articles_count']} مقال")
+                        if result['articles_count'] > 0:
+                            st.info(f"📰 عينة: {result.get('sample_title', 'N/A')}")
+                    else:
+                        st.error(f"❌ فشل الاختبار: {result.get('error', 'خطأ غير معروف')}")
+                except Exception as e:
+                    st.error(f"❌ خطأ في الاختبار: {str(e)}")
+
+        # معالجة الإضافة
+        if submit_rss and rss_name and rss_url:
+            try:
+                import yaml
+                config_path = 'config/sources.yaml'
+                
+                # قراءة الملف الحالي
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f) or {}
+                
+                if 'rss_sources' not in config:
+                    config['rss_sources'] = {}
+                
+                # إضافة المصدر الجديد
+                source_id = rss_name.lower().replace(' ', '_').replace('-', '_')
+                config['rss_sources'][source_id] = {
+                    'url': rss_url,
+                    'category': rss_category,
+                    'language': rss_language,
+                    'enabled': rss_enabled
+                }
+                
+                # حفظ الملف
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+                
+                st.success(f"✅ تمت إضافة المصدر '{rss_name}' بنجاح!")
+                st.info("🔄 سيبدأ جمع البيانات في الدورة القادمة (خلال 15 دقيقة)")
+                
+            except Exception as e:
+                st.error(f"❌ خطأ في الإضافة: {str(e)}")
+
+        # ── قائمة المصادر الحالية ──
+        st.markdown(f"""
+        <div class="section-header" style="margin-top:30px;">
+            <h2>📋 المصادر الحالية</h2>
+            {info_tip("جميع مصادر RSS المضافة حالياً. يمكنك تفعيل/تعطيل أي مصدر أو حذفه.")}
+        </div>
+        """, unsafe_allow_html=True)
+
+        try:
+            import yaml
+            with open('config/sources.yaml', 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f) or {}
+            
+            rss_sources_list = config.get('rss_sources', {})
+            
+            if rss_sources_list:
+                for source_id, details in rss_sources_list.items():
+                    col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                    with col1:
+                        enabled_icon = "✅" if details.get('enabled', True) else "⏸️"
+                        st.markdown(f"{enabled_icon} **{source_id}**")
+                        st.caption(details['url'])
+                    with col2:
+                        st.text(details.get('category', 'N/A'))
+                    with col3:
+                        st.text(details.get('language', 'ar'))
+                    with col4:
+                        if st.button("🗑️", key=f"del_rss_{source_id}", help="حذف"):
+                            del config['rss_sources'][source_id]
+                            with open('config/sources.yaml', 'w', encoding='utf-8') as f:
+                                yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+                            st.rerun()
+                    st.markdown("---")
+            else:
+                st.info("لا توجد مصادر RSS مضافة بعد")
+        except Exception as e:
+            st.error(f"خطأ في قراءة المصادر: {str(e)}")
+
+    # ────────────────────────────────────────────────────────
+    # Tab 2: مواقع الأسعار
+    # ────────────────────────────────────────────────────────
+    with tab2:
+        st.markdown(f"""
+        <div class="section-header" style="margin-top:15px;">
+            <h2>إضافة موقع أسعار جديد</h2>
+            {info_tip("أضف أي موقع يعرض أسعار الصرف. يمكنك تحديد CSS Selector أو نمط Regex لاستخراج السعر من الصفحة.")}
+        </div>
+        """, unsafe_allow_html=True)
+
+        with st.form("add_web_source", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                web_name = st.text_input(
+                    "اسم الموقع",
+                    placeholder="مثال: موقع أسعار دمشق",
+                    help="اسم مميز للموقع"
+                )
+                web_url = st.text_input(
+                    "رابط الموقع",
+                    placeholder="https://example.com/prices",
+                    help="عنوان URL الكامل للصفحة"
+                )
+            
+            with col2:
+                web_location = st.text_input(
+                    "الموقع الجغرافي",
+                    placeholder="دمشق / حلب / السوق السوداء",
+                    help="المدينة أو نوع السعر"
+                )
+                extraction_method = st.selectbox(
+                    "طريقة الاستخراج",
+                    ["css_selector", "regex", "xpath"],
+                    format_func=lambda x: {
+                        "css_selector": "CSS Selector",
+                        "regex": "نمط Regex",
+                        "xpath": "XPath"
+                    }[x]
+                )
+            
+            extraction_pattern = st.text_input(
+                "نمط الاستخراج",
+                placeholder="مثال: .price-value أو \\d+\\.\\d+",
+                help="CSS Selector أو Regex حسب الطريقة المختارة"
+            )
+            
+            web_enabled = st.checkbox("تفعيل الموقع فور الإضافة", value=True)
+            
+            col_test, col_submit = st.columns([1, 1])
+            with col_test:
+                test_web = st.form_submit_button("🧪 اختبار الموقع", type="secondary", use_container_width=True)
+            with col_submit:
+                submit_web = st.form_submit_button("➕ إضافة الموقع", type="primary", use_container_width=True)
+
+        # معالجة الاختبار
+        if test_web and web_url:
+            st.info("🔧 وظيفة الاختبار قيد التطوير — سيتم إضافتها قريباً")
+
+        # معالجة الإضافة
+        if submit_web and web_name and web_url:
+            try:
+                import yaml
+                config_path = 'config/sources.yaml'
+                
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f) or {}
+                
+                if 'price_websites' not in config:
+                    config['price_websites'] = {}
+                
+                source_id = web_name.lower().replace(' ', '_').replace('-', '_')
+                config['price_websites'][source_id] = {
+                    'url': web_url,
+                    'location': web_location,
+                    'extraction_method': extraction_method,
+                    'extraction_pattern': extraction_pattern,
+                    'enabled': web_enabled
+                }
+                
+                with open(config_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+                
+                st.success(f"✅ تمت إضافة الموقع '{web_name}' بنجاح!")
+                st.warning("⚠️ ملاحظة: WebScraper حالياً يدعم 3 مواقع محددة. ستحتاج لتعديل الكود لإضافة مواقع جديدة.")
+                
+            except Exception as e:
+                st.error(f"❌ خطأ في الإضافة: {str(e)}")
+
+        # قائمة المواقع الحالية
+        st.markdown(f"""
+        <div class="section-header" style="margin-top:30px;">
+            <h2>📋 المواقع الحالية</h2>
+        </div>
+        """, unsafe_allow_html=True)
+
+        try:
+            import yaml
+            with open('config/sources.yaml', 'r', encoding='utf-8') as f:
+                config = yaml.safe_load(f) or {}
+            
+            web_sources_list = config.get('price_websites', {})
+            
+            if web_sources_list:
+                for source_id, details in web_sources_list.items():
+                    col1, col2, col3 = st.columns([3, 2, 1])
+                    with col1:
+                        enabled_icon = "✅" if details.get('enabled', True) else "⏸️"
+                        st.markdown(f"{enabled_icon} **{source_id}**")
+                        st.caption(details['url'])
+                    with col2:
+                        st.text(details.get('location', 'N/A'))
+                    with col3:
+                        if st.button("🗑️", key=f"del_web_{source_id}", help="حذف"):
+                            del config['price_websites'][source_id]
+                            with open('config/sources.yaml', 'w', encoding='utf-8') as f:
+                                yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+                            st.rerun()
+                    st.markdown("---")
+            else:
+                st.info("لا توجد مواقع أسعار مضافة بعد")
+        except Exception as e:
+            st.error(f"خطأ في قراءة المواقع: {str(e)}")
+
+    # ────────────────────────────────────────────────────────
+    # Tab 3: قنوات تلغرام
+    # ────────────────────────────────────────────────────────
+    with tab3:
+        st.markdown(f"""
+        <div class="section-header" style="margin-top:15px;">
+            <h2>إضافة قناة تلغرام</h2>
+            {info_tip("أضف أي قناة تلغرام عامة تنشر أسعار الصرف أو الأخبار الاقتصادية. يجب إعداد TELEGRAM_API_ID أولاً.")}
+        </div>
+        """, unsafe_allow_html=True)
+
+        # التحقق من إعداد تلغرام
+        telegram_configured = bool(os.getenv("TELEGRAM_API_ID"))
+        if not telegram_configured:
+            st.error("""
+            ⚠️ **بيانات اعتماد Telegram غير مهيأة**
+            
+            لإضافة قنوات تلغرام، يجب أولاً:
+            1. الحصول على API_ID و API_HASH من https://my.telegram.org
+            2. إضافتهم إلى ملف `.env`:
+               ```
+               TELEGRAM_API_ID=your_api_id
+               TELEGRAM_API_HASH=your_api_hash
+               ```
+            3. إعادة تشغيل التطبيق
+            """)
+        else:
+            with st.form("add_telegram_source", clear_on_submit=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    tg_name = st.text_input(
+                        "اسم القناة",
+                        placeholder="مثال: قناة أسعار دمشق",
+                        help="اسم مميز للقناة"
+                    )
+                    tg_username = st.text_input(
+                        "معرّف القناة",
+                        placeholder="@channel_username",
+                        help="اسم المستخدم للقناة (يبدأ بـ @)"
+                    )
+                
+                with col2:
+                    tg_type = st.selectbox(
+                        "نوع المحتوى",
+                        ["أسعار", "أخبار اقتصادية", "أخبار عامة"],
+                        help="نوع البيانات المنشورة في القناة"
+                    )
+                    tg_language = st.selectbox(
+                        "اللغة",
+                        ["ar", "en"],
+                        format_func=lambda x: {"ar": "العربية", "en": "الإنجليزية"}[x]
+                    )
+                
+                tg_enabled = st.checkbox("تفعيل القناة فور الإضافة", value=True)
+                
+                submit_tg = st.form_submit_button("➕ إضافة القناة", type="primary", use_container_width=True)
+
+            if submit_tg and tg_name and tg_username:
+                try:
+                    import yaml
+                    config_path = 'config/sources.yaml'
+                    
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        config = yaml.safe_load(f) or {}
+                    
+                    if 'telegram_channels' not in config:
+                        config['telegram_channels'] = {}
+                    
+                    source_id = tg_name.lower().replace(' ', '_').replace('-', '_')
+                    config['telegram_channels'][source_id] = {
+                        'username': tg_username,
+                        'type': tg_type,
+                        'language': tg_language,
+                        'enabled': tg_enabled
+                    }
+                    
+                    with open(config_path, 'w', encoding='utf-8') as f:
+                        yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+                    
+                    st.success(f"✅ تمت إضافة القناة '{tg_name}' بنجاح!")
+                    st.info("🔄 سيبدأ جمع البيانات في الدورة القادمة")
+                    
+                except Exception as e:
+                    st.error(f"❌ خطأ في الإضافة: {str(e)}")
+
+            # قائمة القنوات الحالية
+            st.markdown(f"""
+            <div class="section-header" style="margin-top:30px;">
+                <h2>📋 القنوات الحالية</h2>
+            </div>
+            """, unsafe_allow_html=True)
+
+            try:
+                import yaml
+                with open('config/sources.yaml', 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f) or {}
+                
+                tg_sources_list = config.get('telegram_channels', {})
+                
+                if tg_sources_list:
+                    for source_id, details in tg_sources_list.items():
+                        col1, col2, col3 = st.columns([3, 2, 1])
+                        with col1:
+                            enabled_icon = "✅" if details.get('enabled', True) else "⏸️"
+                            st.markdown(f"{enabled_icon} **{source_id}**")
+                            st.caption(details.get('username', 'N/A'))
+                        with col2:
+                            st.text(details.get('type', 'N/A'))
+                        with col3:
+                            if st.button("🗑️", key=f"del_tg_{source_id}", help="حذف"):
+                                del config['telegram_channels'][source_id]
+                                with open('config/sources.yaml', 'w', encoding='utf-8') as f:
+                                    yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+                                st.rerun()
+                        st.markdown("---")
+                else:
+                    st.info("لا توجد قنوات تلغرام مضافة بعد")
+            except Exception as e:
+                st.error(f"خطأ في قراءة القنوات: {str(e)}")
 
 
 # ══════════════════════════════════════════════════════════

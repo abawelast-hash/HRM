@@ -48,23 +48,69 @@ app.conf.beat_schedule = {
 @app.task(bind=True, max_retries=3, default_retry_delay=60)
 def collect_rss(self):
     """Collect from all RSS sources."""
-    import asyncio
-    from src.utils.config import get_sources
+    import logging
+    import yaml
     from src.ingestion.collectors.rss_collector import RSSCollector
-
-    sources = get_sources()
-    results = []
-
-    async def _run():
-        for src_cfg in sources.get('rss_sources', []):
-            if not src_cfg.get('active', True):
-                continue
-            collector = RSSCollector(src_cfg['name'], src_cfg['url'])
-            items = await collector.collect_with_retry()
-            results.append({'source': src_cfg['name'], 'count': len(items)})
-
-    asyncio.run(_run())
-    return results
+    
+    logger = logging.getLogger(__name__)
+    logger.info("📰 Starting RSS collection task...")
+    
+    try:
+        # Load sources configuration
+        with open('config/sources.yaml', 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        
+        rss_sources = config.get('rss_sources', [])
+        feeds_list = []
+        
+        # Support both list and dict formats
+        if isinstance(rss_sources, list):
+            # List format (current)
+            for source in rss_sources:
+                if source.get('active', True):
+                    feeds_list.append({
+                        'name': source['name'],
+                        'url': source['url'],
+                        'category': source.get('category', 'general'),
+                        'language': source.get('language', 'ar')
+                    })
+        else:
+            # Dict format (for future compatibility)
+            for name, details in rss_sources.items():
+                if details.get('enabled', True):
+                    feeds_list.append({
+                        'name': name,
+                        'url': details['url'],
+                        'category': details.get('category', 'general'),
+                        'language': details.get('language', 'ar')
+                    })
+        
+        if not feeds_list:
+            logger.warning("⚠️ No RSS sources configured")
+            return {'status': 'no_sources', 'count': 0}
+        
+        # Collect from all sources
+        collector = RSSCollector(storage_db=True)
+        results = collector.collect_all(feeds_list, delay=(2, 5))
+        collector.close()
+        
+        # Calculate statistics
+        total_articles = sum(r['articles_count'] for r in results)
+        successful = sum(1 for r in results if r['success'])
+        
+        logger.info(f"✅ RSS collection completed: {total_articles} articles from {successful}/{len(results)} sources")
+        
+        return {
+            'status': 'success',
+            'sources_total': len(results),
+            'sources_successful': successful,
+            'articles_collected': total_articles,
+            'details': [{'source': r['source'], 'count': r['articles_count'], 'success': r['success']} for r in results]
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in RSS collection task: {e}", exc_info=True)
+        raise self.retry(exc=e)
 
 
 @app.task(bind=True, max_retries=3, default_retry_delay=120)
@@ -82,24 +128,37 @@ def collect_telegram_news(self):
 @app.task(bind=True, max_retries=3, default_retry_delay=60)
 def collect_web_prices(self):
     """Scrape exchange rates from websites."""
-    import asyncio
-    from src.utils.config import get_sources
+    import logging
     from src.ingestion.collectors.web_scraper import WebScraper
-
-    sources = get_sources()
-    results = []
-
-    async def _run():
-        for src_cfg in sources.get('price_sources', []):
-            if not src_cfg.get('active', True):
-                continue
-            parser_config = src_cfg.get('parser_config', {})
-            scraper = WebScraper(src_cfg['name'], src_cfg['url'], parser_config)
-            items = await scraper.collect_with_retry()
-            results.append({'source': src_cfg['name'], 'count': len(items)})
-
-    asyncio.run(_run())
-    return results
+    
+    logger = logging.getLogger(__name__)
+    logger.info("💰 Starting web prices collection task...")
+    
+    try:
+        # Create scraper with InfluxDB storage
+        scraper = WebScraper(storage_db=True)
+        
+        # Collect from all supported websites
+        results = scraper.collect_all(delay=(3, 7))
+        scraper.close()
+        
+        # Calculate statistics
+        successful = len([r for r in results if r.get('success', False)])
+        total = len(results)
+        
+        logger.info(f"✅ Web prices collection completed: {successful}/{total} sources successful")
+        
+        return {
+            'status': 'success',
+            'sources_total': total,
+            'sources_successful': successful,
+            'prices_collected': successful,
+            'details': [{'source': r['source'], 'price': r.get('price'), 'success': r.get('success')} for r in results]
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in web prices collection task: {e}", exc_info=True)
+        raise self.retry(exc=e)
 
 
 @app.task(bind=True, max_retries=3, default_retry_delay=300)
