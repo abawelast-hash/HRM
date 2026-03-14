@@ -1,0 +1,47 @@
+[theme]
+# Primary accent color for interactive elements
+primaryColor = "#3b82f6"
+
+# Background color for the main content area
+backgroundColor = "#ffffff"
+
+# Background color used for the sidebar and most interactive widgets
+secondaryBackgroundColor = "#f8fafc"
+
+# Color used for almost all text
+textColor = "#0f172a"
+
+# Font family for all text in the app, except code blocks
+# Supports: "sans serif", "serif", or "monospace"
+font = "sans serif"
+
+[browser]
+# Internet address where users should point their browsers in order
+# to connect to the app
+serverAddress = "0.0.0.0"
+
+# Port where users should point their browsers in order to connect to the app
+serverPort = 8501
+
+[server]
+# Enables support for Cross-Origin Resource Sharing (CORS) protection
+enableCORS = false
+
+# Enables support for Cross-Site Request Forgery (XSRF) protection
+enableXsrfProtection = true
+
+# Max size, in megabytes, for files uploaded with the file_uploader
+maxUploadSize = 200
+
+# If set, this enables a headless mode
+headless = false
+
+[runner]
+# Allows you to type a variable or string by itself in a single line of
+# Python code to write it to the app
+magicEnabled = true
+
+# Install a Python tracer to allow you to stop or pause your script at any
+# point and introspect it. As a side-effect, this slows down your script's
+# execution
+fastReruns = true

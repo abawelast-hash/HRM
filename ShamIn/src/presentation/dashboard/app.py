@@ -17,6 +17,9 @@ st.set_page_config(
     page_icon="🏛️",
     layout="wide",
     initial_sidebar_state="expanded",
+    menu_items={
+        'About': "نظام ShamIn للتنبؤ بسعر صرف الليرة السورية"
+    }
 )
 
 # ──────────────────────────────────────────────────────────
@@ -25,25 +28,59 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    /* RTL Support */
-    .stApp { direction: rtl; }
-    .stMarkdown, .stText { direction: rtl; text-align: right; }
-    .stSelectbox > div, .stRadio > div { direction: rtl; }
+    /* ==========================================
+       RTL Support & Typography
+       ========================================== */
+    .stApp { 
+        direction: rtl; 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .stMarkdown, .stText, p, h1, h2, h3, h4, h5, h6 { 
+        direction: rtl; 
+        text-align: right; 
+    }
+    .stSelectbox > div, .stRadio > div, .stMultiSelect > div { 
+        direction: rtl; 
+    }
 
-    /* Info Tooltip Styling */
+    /* ==========================================
+       Responsive Design
+       ========================================== */
+    @media (max-width: 768px) {
+        .stApp { padding: 10px; }
+        .metric-card { padding: 15px; margin: 5px 0; }
+        .metric-card .value { font-size: 22px !important; }
+        .section-header h2 { font-size: 20px !important; }
+    }
+    
+    @media (min-width: 769px) and (max-width: 1024px) {
+        .metric-card { padding: 18px; }
+        .metric-card .value { font-size: 24px !important; }
+    }
+
+    /* ==========================================
+       Info Tooltip Styling
+       ========================================== */
     .info-tip {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 20px; height: 20px;
+        width: 20px; 
+        height: 20px;
         border-radius: 50%;
-        background: #3b82f6;
-        color: white;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: #ffffff;
         font-size: 12px;
         font-weight: bold;
         cursor: help;
         margin-right: 6px;
         position: relative;
+        box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+        transition: all 0.2s ease;
+    }
+    .info-tip:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 8px rgba(59, 130, 246, 0.4);
     }
     .info-tip:hover .tip-text {
         visibility: visible;
@@ -53,76 +90,259 @@ st.markdown("""
         visibility: hidden;
         opacity: 0;
         width: 280px;
-        background: #1e293b;
-        color: #e2e8f0;
+        background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+        color: #f1f5f9;
         text-align: right;
-        border-radius: 8px;
-        padding: 10px 14px;
+        border-radius: 10px;
+        padding: 12px 16px;
         position: absolute;
-        z-index: 999;
-        top: 28px;
+        z-index: 9999;
+        top: 32px;
         right: -10px;
-        transition: opacity 0.3s;
+        transition: all 0.3s ease;
         font-size: 13px;
-        line-height: 1.6;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        line-height: 1.7;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         direction: rtl;
     }
+    .tip-text::before {
+        content: '';
+        position: absolute;
+        top: -6px;
+        right: 20px;
+        width: 12px;
+        height: 12px;
+        background: #1e3a5f;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        transform: rotate(-45deg);
+    }
 
-    /* Status Badges */
+    /* ==========================================
+       Status Badges
+       ========================================== */
     .status-badge {
         display: inline-block;
-        padding: 3px 12px;
-        border-radius: 12px;
+        padding: 4px 14px;
+        border-radius: 16px;
         font-size: 13px;
         font-weight: 600;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s ease;
     }
-    .status-healthy { background: #065f46; color: #6ee7b7; }
-    .status-warning { background: #78350f; color: #fbbf24; }
-    .status-error { background: #7f1d1d; color: #fca5a5; }
-    .status-pending { background: #1e3a5f; color: #93c5fd; }
+    .status-badge:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    .status-healthy { 
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: #ffffff; 
+    }
+    .status-warning { 
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: #ffffff; 
+    }
+    .status-error { 
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: #ffffff; 
+    }
+    .status-pending { 
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: #ffffff; 
+    }
 
-    /* Cards */
+    /* ==========================================
+       Metric Cards
+       ========================================== */
     .metric-card {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 20px;
-        margin: 8px 0;
+        background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+        border: 2px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 24px;
+        margin: 10px 0;
         direction: rtl;
         text-align: right;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s ease;
     }
-    .metric-card h3 { color: #94a3b8; font-size: 14px; margin: 0 0 8px 0; }
-    .metric-card .value { color: #f1f5f9; font-size: 28px; font-weight: 700; }
-    .metric-card .sub { color: #64748b; font-size: 12px; margin-top: 4px; }
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        border-color: #3b82f6;
+    }
+    .metric-card h3 { 
+        color: #64748b; 
+        font-size: 15px; 
+        font-weight: 600;
+        margin: 0 0 12px 0; 
+        letter-spacing: 0.3px;
+    }
+    .metric-card .value { 
+        color: #0f172a; 
+        font-size: 32px; 
+        font-weight: 800;
+        margin: 8px 0;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    .metric-card .sub { 
+        color: #94a3b8; 
+        font-size: 13px; 
+        margin-top: 6px;
+        font-weight: 500;
+    }
 
-    /* Section Header */
+    /* Dark Mode Support */
+    @media (prefers-color-scheme: dark) {
+        .metric-card {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-color: #334155;
+        }
+        .metric-card:hover {
+            border-color: #3b82f6;
+        }
+        .metric-card h3 { color: #94a3b8; }
+        .metric-card .value { 
+            color: #f1f5f9;
+            -webkit-text-fill-color: unset;
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .metric-card .sub { color: #64748b; }
+    }
+
+    /* ==========================================
+       Section Headers
+       ========================================== */
     .section-header {
         display: flex;
         align-items: center;
-        gap: 10px;
-        margin: 20px 0 10px 0;
+        gap: 12px;
+        margin: 28px 0 16px 0;
+        padding-bottom: 12px;
+        border-bottom: 3px solid #e2e8f0;
         direction: rtl;
     }
-    .section-header h2 { margin: 0; color: #f1f5f9; }
+    .section-header h2 { 
+        margin: 0; 
+        color: #0f172a; 
+        font-size: 24px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+        .section-header { border-bottom-color: #334155; }
+        .section-header h2 { 
+            color: #f1f5f9;
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    }
 
-    /* Phase Badge */
+    /* ==========================================
+       Phase Badges
+       ========================================== */
     .phase-badge {
         display: inline-block;
-        padding: 2px 10px;
-        border-radius: 10px;
-        font-size: 11px;
+        padding: 3px 12px;
+        border-radius: 12px;
+        font-size: 12px;
         font-weight: 600;
         margin-right: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
-    .phase-active { background: #065f46; color: #6ee7b7; }
-    .phase-next { background: #78350f; color: #fbbf24; }
-    .phase-future { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+    .phase-active { 
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: #ffffff; 
+    }
+    .phase-next { 
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: #ffffff; 
+    }
+    .phase-future { 
+        background: #f1f5f9; 
+        color: #64748b; 
+        border: 2px solid #cbd5e1; 
+    }
+    
+    @media (prefers-color-scheme: dark) {
+        .phase-future { 
+            background: #1e293b; 
+            border-color: #334155; 
+        }
+    }
 
-    /* Hide Streamlit Defaults */
+    /* ==========================================
+       Buttons & Interactive Elements
+       ========================================== */
+    .stButton button {
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        padding: 10px 24px !important;
+        transition: all 0.2s ease !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+    }
+    .stButton button:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    /* ==========================================
+       Hide Streamlit Defaults
+       ========================================== */
     #MainMenu { visibility: hidden; }
     footer { visibility: hidden; }
     .stDeployButton { display: none; }
+    
+    /* ==========================================
+       Tables
+       ========================================== */
+    .stDataFrame {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+    
+    /* ==========================================
+       Sidebar
+       ========================================== */
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    }
+    section[data-testid="stSidebar"] h1, 
+    section[data-testid="stSidebar"] h2, 
+    section[data-testid="stSidebar"] h3 {
+        color: #0f172a !important;
+    }
+    
+    @media (prefers-color-scheme: dark) {
+        section[data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+        }
+        section[data-testid="stSidebar"] h1, 
+        section[data-testid="stSidebar"] h2, 
+        section[data-testid="stSidebar"] h3 {
+            color: #f1f5f9 !important;
+        }
+    }
+    
+    /* ==========================================
+       Charts & Data Viz
+       ========================================== */
+    .js-plotly-plot {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
 </style>
 """, unsafe_allow_html=True)
 
