@@ -3,9 +3,23 @@ from fastapi import APIRouter, HTTPException
 from typing import Dict, List, Optional
 import logging
 from datetime import datetime
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 logger = logging.getLogger(__name__)
+
+
+def get_db_connection():
+    """Get PostgreSQL connection."""
+    return psycopg2.connect(
+        host=os.getenv('POSTGRES_HOST', 'postgres'),
+        port=os.getenv('POSTGRES_PORT', '5432'),
+        dbname=os.getenv('POSTGRES_DB', 'shamin_db'),
+        user=os.getenv('POSTGRES_USER', 'shamin_user'),
+        password=os.getenv('POSTGRES_PASSWORD', 'password')
+    )
 
 
 @router.post("/collect/rss")
@@ -258,34 +272,37 @@ async def get_raw_texts(
     Returns:
         Dict: قائمة النصوص مع البيانات الوصفية
     """
+    conn = None
     try:
-        from src.storage.relational_db import RelationalDB
-        
-        db = RelationalDB()
-        limit = min(limit, 500)  # حد أقصى 500
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        limit = min(limit, 500)
         
         # بناء الاستعلام
-        query = "SELECT * FROM raw_texts"
-        params = []
-        
         if source_type:
-            query += " WHERE source_type = %s"
-            params.append(source_type)
+            query = "SELECT * FROM raw_texts WHERE source_type = %s ORDER BY created_at DESC LIMIT %s OFFSET %s"
+            cur.execute(query, (source_type, limit, offset))
+        else:
+            query = "SELECT * FROM raw_texts ORDER BY created_at DESC LIMIT %s OFFSET %s"
+            cur.execute(query, (limit, offset))
         
-        query += " ORDER BY collected_at DESC LIMIT %s OFFSET %s"
-        params.extend([limit, offset])
+        rows = [dict(row) for row in cur.fetchall()]
         
-        # تنفيذ الاستعلام
-        rows = db.execute_query(query, tuple(params) if params else None)
+        # Convert datetime to string for JSON serialization
+        for row in rows:
+            for key, value in row.items():
+                if isinstance(value, datetime):
+                    row[key] = value.isoformat()
         
         # عدد السجلات الإجمالي
-        count_query = "SELECT COUNT(*) as total FROM raw_texts"
         if source_type:
-            count_query += f" WHERE source_type = '{source_type}'"
-        total_result = db.execute_query(count_query)
-        total = total_result[0]['total'] if total_result else 0
+            cur.execute("SELECT COUNT(*) as total FROM raw_texts WHERE source_type = %s", (source_type,))
+        else:
+            cur.execute("SELECT COUNT(*) as total FROM raw_texts")
+        total = cur.fetchone()['total']
         
-        db.close()
+        cur.close()
+        conn.close()
         
         return {
             "status": "success",
@@ -299,6 +316,8 @@ async def get_raw_texts(
             }
         }
     except Exception as e:
+        if conn:
+            conn.close()
         logger.error(f"Error fetching raw texts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -314,24 +333,33 @@ async def get_raw_text_by_id(text_id: int) -> Dict:
     Returns:
         Dict: بيانات النص الكاملة
     """
+    conn = None
     try:
-        from src.storage.relational_db import RelationalDB
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT * FROM raw_texts WHERE id = %s", (text_id,))
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
         
-        db = RelationalDB()
-        rows = db.execute_query("SELECT * FROM raw_texts WHERE id = %s", (text_id,))
-        db.close()
-        
-        if not rows:
+        if not row:
             raise HTTPException(status_code=404, detail="Text not found")
+        
+        data = dict(row)
+        for key, value in data.items():
+            if isinstance(value, datetime):
+                data[key] = value.isoformat()
         
         return {
             "status": "success",
             "timestamp": datetime.utcnow().isoformat(),
-            "data": rows[0]
+            "data": data
         }
     except HTTPException:
         raise
     except Exception as e:
+        if conn:
+            conn.close()
         logger.error(f"Error fetching raw text {text_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -351,25 +379,33 @@ async def search_raw_texts(
     Returns:
         Dict: نتائج البحث
     """
+    conn = None
     try:
-        from src.storage.relational_db import RelationalDB
-        
         if len(q) < 2:
             raise HTTPException(status_code=400, detail="Search query too short")
         
-        db = RelationalDB()
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         limit = min(limit, 100)
         
         # البحث في المحتوى والعنوان
         query = """
             SELECT * FROM raw_texts 
             WHERE content ILIKE %s OR title ILIKE %s
-            ORDER BY collected_at DESC 
+            ORDER BY created_at DESC 
             LIMIT %s
         """
         search_pattern = f"%{q}%"
-        rows = db.execute_query(query, (search_pattern, search_pattern, limit))
-        db.close()
+        cur.execute(query, (search_pattern, search_pattern, limit))
+        rows = [dict(row) for row in cur.fetchall()]
+        
+        for row in rows:
+            for key, value in row.items():
+                if isinstance(value, datetime):
+                    row[key] = value.isoformat()
+        
+        cur.close()
+        conn.close()
         
         return {
             "status": "success",
@@ -381,6 +417,8 @@ async def search_raw_texts(
     except HTTPException:
         raise
     except Exception as e:
+        if conn:
+            conn.close()
         logger.error(f"Error searching raw texts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -393,40 +431,46 @@ async def get_data_stats() -> Dict:
     Returns:
         Dict: إحصائيات شاملة
     """
+    conn = None
     try:
-        from src.storage.relational_db import RelationalDB
-        
-        db = RelationalDB()
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
         
         # إجمالي النصوص
-        total_query = "SELECT COUNT(*) as total FROM raw_texts"
-        total_result = db.execute_query(total_query)
-        total = total_result[0]['total'] if total_result else 0
+        cur.execute("SELECT COUNT(*) as total FROM raw_texts")
+        total = cur.fetchone()['total']
         
         # توزيع حسب المصدر
-        by_source_query = """
+        cur.execute("""
             SELECT source_type, COUNT(*) as count 
             FROM raw_texts 
             GROUP BY source_type
-        """
-        by_source = db.execute_query(by_source_query)
+        """)
+        by_source = [dict(row) for row in cur.fetchall()]
         
         # توزيع حسب اليوم (آخر 7 أيام)
-        by_day_query = """
-            SELECT DATE(collected_at) as date, COUNT(*) as count 
+        cur.execute("""
+            SELECT DATE(created_at) as date, COUNT(*) as count 
             FROM raw_texts 
-            WHERE collected_at > NOW() - INTERVAL '7 days'
-            GROUP BY DATE(collected_at)
+            WHERE created_at > NOW() - INTERVAL '7 days'
+            GROUP BY DATE(created_at)
             ORDER BY date DESC
-        """
-        by_day = db.execute_query(by_day_query)
+        """)
+        by_day_raw = cur.fetchall()
+        by_day = []
+        for row in by_day_raw:
+            by_day.append({
+                'date': row['date'].isoformat() if row['date'] else None,
+                'count': row['count']
+            })
         
         # آخر عملية جمع
-        last_query = "SELECT MAX(collected_at) as last FROM raw_texts"
-        last_result = db.execute_query(last_query)
-        last_collected = last_result[0]['last'] if last_result and last_result[0]['last'] else None
+        cur.execute("SELECT MAX(created_at) as last FROM raw_texts")
+        last_result = cur.fetchone()
+        last_collected = last_result['last'] if last_result and last_result['last'] else None
         
-        db.close()
+        cur.close()
+        conn.close()
         
         return {
             "status": "success",
@@ -439,5 +483,7 @@ async def get_data_stats() -> Dict:
             }
         }
     except Exception as e:
+        if conn:
+            conn.close()
         logger.error(f"Error fetching data stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
