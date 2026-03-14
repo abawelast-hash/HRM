@@ -903,26 +903,47 @@ elif page == "➕ إدارة المصادر":
             with open('config/sources.yaml', 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f) or {}
             
-            rss_sources_list = config.get('rss_sources', {})
+            rss_sources_list = config.get('rss_sources', [])
             
             if rss_sources_list:
-                for source_id, details in rss_sources_list.items():
-                    col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
-                    with col1:
-                        enabled_icon = "✅" if details.get('enabled', True) else "⏸️"
-                        st.markdown(f"{enabled_icon} **{source_id}**")
-                        st.caption(details['url'])
-                    with col2:
-                        st.text(details.get('category', 'N/A'))
-                    with col3:
-                        st.text(details.get('language', 'ar'))
-                    with col4:
-                        if st.button("🗑️", key=f"del_rss_{source_id}", help="حذف"):
-                            del config['rss_sources'][source_id]
-                            with open('config/sources.yaml', 'w', encoding='utf-8') as f:
-                                yaml.dump(config, f, allow_unicode=True, sort_keys=False)
-                            st.rerun()
-                    st.markdown("---")
+                # التعامل مع القائمة
+                if isinstance(rss_sources_list, list):
+                    for idx, source in enumerate(rss_sources_list):
+                        col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                        with col1:
+                            enabled_icon = "✅" if source.get('active', True) else "⏸️"
+                            st.markdown(f"{enabled_icon} **{source.get('name', f'مصدر {idx+1}')}**")
+                            st.caption(source.get('url', 'N/A'))
+                        with col2:
+                            st.text(source.get('category', 'N/A'))
+                        with col3:
+                            st.text(source.get('language', 'ar'))
+                        with col4:
+                            if st.button("🗑️", key=f"del_rss_{idx}", help="حذف"):
+                                config['rss_sources'].pop(idx)
+                                with open('config/sources.yaml', 'w', encoding='utf-8') as f:
+                                    yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+                                st.rerun()
+                        st.markdown("---")
+                # التعامل مع القاموس (للتوافق مع الإصدارات القديمة)
+                else:
+                    for source_id, details in rss_sources_list.items():
+                        col1, col2, col3, col4 = st.columns([3, 2, 1, 1])
+                        with col1:
+                            enabled_icon = "✅" if details.get('enabled', True) else "⏸️"
+                            st.markdown(f"{enabled_icon} **{source_id}**")
+                            st.caption(details['url'])
+                        with col2:
+                            st.text(details.get('category', 'N/A'))
+                        with col3:
+                            st.text(details.get('language', 'ar'))
+                        with col4:
+                            if st.button("🗑️", key=f"del_rss_{source_id}", help="حذف"):
+                                del config['rss_sources'][source_id]
+                                with open('config/sources.yaml', 'w', encoding='utf-8') as f:
+                                    yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+                                st.rerun()
+                        st.markdown("---")
             else:
                 st.info("لا توجد مصادر RSS مضافة بعد")
         except Exception as e:
@@ -1029,24 +1050,44 @@ elif page == "➕ إدارة المصادر":
             with open('config/sources.yaml', 'r', encoding='utf-8') as f:
                 config = yaml.safe_load(f) or {}
             
-            web_sources_list = config.get('price_websites', {})
+            web_sources_list = config.get('price_sources', [])  # price_sources بدلاً من price_websites
             
             if web_sources_list:
-                for source_id, details in web_sources_list.items():
-                    col1, col2, col3 = st.columns([3, 2, 1])
-                    with col1:
-                        enabled_icon = "✅" if details.get('enabled', True) else "⏸️"
-                        st.markdown(f"{enabled_icon} **{source_id}**")
-                        st.caption(details['url'])
-                    with col2:
-                        st.text(details.get('location', 'N/A'))
-                    with col3:
-                        if st.button("🗑️", key=f"del_web_{source_id}", help="حذف"):
-                            del config['price_websites'][source_id]
-                            with open('config/sources.yaml', 'w', encoding='utf-8') as f:
-                                yaml.dump(config, f, allow_unicode=True, sort_keys=False)
-                            st.rerun()
-                    st.markdown("---")
+                # التعامل مع القائمة
+                if isinstance(web_sources_list, list):
+                    for idx, source in enumerate(web_sources_list):
+                        col1, col2, col3 = st.columns([3, 2, 1])
+                        with col1:
+                            enabled_icon = "✅" if source.get('active', True) else "⏸️"
+                            st.markdown(f"{enabled_icon} **{source.get('name', f'موقع {idx+1}')}**")
+                            st.caption(source.get('url', 'N/A'))
+                        with col2:
+                            freq = source.get('frequency_minutes', 'N/A')
+                            st.text(f"كل {freq} دقيقة")
+                        with col3:
+                            if st.button("🗑️", key=f"del_web_{idx}", help="حذف"):
+                                config['price_sources'].pop(idx)
+                                with open('config/sources.yaml', 'w', encoding='utf-8') as f:
+                                    yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+                                st.rerun()
+                        st.markdown("---")
+                # التعامل مع القاموس
+                else:
+                    for source_id, details in web_sources_list.items():
+                        col1, col2, col3 = st.columns([3, 2, 1])
+                        with col1:
+                            enabled_icon = "✅" if details.get('enabled', True) else "⏸️"
+                            st.markdown(f"{enabled_icon} **{source_id}**")
+                            st.caption(details['url'])
+                        with col2:
+                            st.text(details.get('location', 'N/A'))
+                        with col3:
+                            if st.button("🗑️", key=f"del_web_{source_id}", help="حذف"):
+                                del config['price_sources'][source_id]
+                                with open('config/sources.yaml', 'w', encoding='utf-8') as f:
+                                    yaml.dump(config, f, allow_unicode=True, sort_keys=False)
+                                st.rerun()
+                        st.markdown("---")
             else:
                 st.info("لا توجد مواقع أسعار مضافة بعد")
         except Exception as e:
@@ -1149,20 +1190,37 @@ elif page == "➕ إدارة المصادر":
                 with open('config/sources.yaml', 'r', encoding='utf-8') as f:
                     config = yaml.safe_load(f) or {}
                 
-                tg_sources_list = config.get('telegram_channels', {})
+                tg_sources_config = config.get('telegram_sources', {})
                 
-                if tg_sources_list:
-                    for source_id, details in tg_sources_list.items():
+                # جمع كل القنوات من prices و news
+                all_channels = []
+                for category in ['prices', 'news']:
+                    channels = tg_sources_config.get(category, [])
+                    if isinstance(channels, list):
+                        for ch in channels:
+                            ch['_category'] = category
+                            all_channels.append(ch)
+                
+                if all_channels:
+                    for idx, source in enumerate(all_channels):
                         col1, col2, col3 = st.columns([3, 2, 1])
                         with col1:
-                            enabled_icon = "✅" if details.get('enabled', True) else "⏸️"
-                            st.markdown(f"{enabled_icon} **{source_id}**")
-                            st.caption(details.get('username', 'N/A'))
+                            enabled_icon = "✅" if source.get('active', True) else "⏸️"
+                            st.markdown(f"{enabled_icon} **{source.get('name', f'قناة {idx+1}')}**")
+                            st.caption(source.get('channel', 'N/A'))
                         with col2:
-                            st.text(details.get('type', 'N/A'))
+                            type_text = "أسعار" if source.get('_category') == 'prices' else "أخبار"
+                            st.text(type_text)
                         with col3:
-                            if st.button("🗑️", key=f"del_tg_{source_id}", help="حذف"):
-                                del config['telegram_channels'][source_id]
+                            if st.button("🗑️", key=f"del_tg_{idx}", help="حذف"):
+                                # حذف من القائمة المناسبة
+                                cat = source.get('_category', 'prices')
+                                cat_list = config['telegram_sources'].get(cat, [])
+                                # البحث عن العنصر وحذفه
+                                for i, item in enumerate(cat_list):
+                                    if item.get('name') == source.get('name'):
+                                        cat_list.pop(i)
+                                        break
                                 with open('config/sources.yaml', 'w', encoding='utf-8') as f:
                                     yaml.dump(config, f, allow_unicode=True, sort_keys=False)
                                 st.rerun()
