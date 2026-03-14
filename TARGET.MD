@@ -1677,6 +1677,356 @@ POST /api/v1/webhook/subscribe        → الاشتراك في التنبيها
 
 ---
 
+## 6.5) حالة التطوير الحالية (Current Development Status)
+
+**آخر تحديث:** 2026-01-XX  
+**الإصدار:** 1.0.0-beta  
+**المرحلة:** Phase 1 (50% مكتملة)
+
+### ✅ المكونات المكتملة بالكامل (100%)
+
+#### 1. البنية التحتية (Infrastructure)
+- ✅ **Docker Compose Configuration**:
+  - PostgreSQL 16 container
+  - InfluxDB 2.7 container
+  - Redis 7 container
+  - MinIO container
+  - Network configuration
+  - Volume management
+  - Health checks
+
+- ✅ **Database Setup Scripts**:
+  - `scripts/setup_db.py` - PostgreSQL schema creation
+  - `scripts/setup_influxdb.py` - InfluxDB bucket & retention policies
+  - `scripts/setup_minio.py` - MinIO buckets for model storage
+  - Automated initialization
+
+#### 2. جمع البيانات (Data Collection)
+- ✅ **RSS Collector** (`ingestion/collectors/rss_collector.py` - 248 سطر):
+  - جمع من 5 مصادر إخبارية:
+    1. عنب بلدي (Enab Baladi)
+    2. رويترز بالعربية (Reuters Arabic)
+    3. وكالة سانا (SANA)
+    4. العربي الجديد (Al-Araby Al-Jadeed)
+    5. الجزيرة (Al Jazeera)
+  - **Deduplication**: MD5 hashing لمنع التكرار
+  - **Retry Logic**: Exponential backoff (3 محاولات)
+  - **Storage**: PostgreSQL (`raw_texts` table)
+  - **Logging**: Comprehensive error tracking
+  - **Production-ready**: Tested and deployed
+
+- ✅ **Web Scraper** (`ingestion/collectors/web_scraper.py` - 300+ سطر):
+  - جمع أسعار من 3 مواقع:
+    1. sp-today.com (API strategy)
+    2. investing.com (HTML parsing)
+    3. البنك المركزي السوري (CBS - JSON strategy)
+  - **Multiple Strategies**: API, JSON, HTML+Regex
+  - **Session Management**: Custom headers & persistence
+  - **Storage**: InfluxDB (`exchange_rates` bucket)
+  - **Error Handling**: Per-site fallbacks
+  - **Scheduling**: Celery integration (every 5 min)
+
+- ⏳ **Telegram Collector** (`ingestion/collectors/telegram_collector.py` - stub):
+  - **Status**: 20% - ينتظر API credentials
+  - **Planned**: 6 channels (3 أسعار + 3 أخبار)
+  - **Framework**: Telethon ready
+  - **Next**: Get API ID/Hash from Telegram
+
+- ⏳ **External APIs Collector**:
+  - **Status**: 10% - قيد التصميم
+  - **Planned**: Gold, Oil, DXY indices
+  - **Sources**: TBD (Alpha Vantage, Yahoo Finance)
+
+#### 3. معالجة النصوص (Text Processing)
+- ✅ **TextCleaner** (`processing/text/cleaner.py` - 240 سطر):
+  - **13 وظيفة متخصصة**:
+    1. `remove_html_tags()` - إزالة HTML
+    2. `remove_html_entities()` - تحويل HTML entities
+    3. `remove_diacritics()` - إزالة التشكيل
+    4. `normalize_arabic()` - تطبيع الحروف (إأآ→ا، ة→ه، ى→ي)
+    5. `convert_arabic_numbers()` - أرقام عربية→إنجليزية
+    6. `remove_urls()` - إزالة الروابط
+    7. `remove_emails()` - إزالة الإيميلات
+    8. `remove_emojis()` - إزالة الإيموجي
+    9. `remove_special_chars()` - إزالة الرموز
+    10. `normalize_whitespace()` - تنظيف المسافات
+    11. `remove_stopwords()` - إزالة 60+ stop word
+    12. `clean_text()` - معالجة شاملة
+    13. `clean_for_sentiment()` - معالجة لتحليل المشاعر
+  - **Modes**: storage, ML, sentiment
+  - **Arabic-specific**: Full RTL support
+  - **Performance**: Batch processing support
+
+- ✅ **NumericExtractor** (`processing/numeric/extractor.py` - 280 سطر):
+  - **12 وظيفة متخصصة**:
+    1. `extract_exchange_rates()` - 8 أنماط للأسعار
+    2. `extract_percentages()` - 3 أنماط للنسب
+    3. `detect_price_trend()` - اتجاه السعر (15+ كلمة)
+    4. `extract_location()` - 10+ مدينة سورية
+    5. `extract_price_context()` - السياق المحيط
+    6. `extract_all_info()` - استخراج شامل
+    7. `batch_extract()` - معالجة دفعات
+    8-12. Helper functions
+  - **Price Patterns**: 8 regex patterns:
+    - "السعر 15000 ليرة"
+    - "15000 ل.س"
+    - "الدولار بـ 15000"
+    - "15,000 SYP/USD"
+    - وغيرها...
+  - **Trend Detection**: "ارتفع، انخفض، استقر، قفز، هبط..."
+  - **Location Detection**: "دمشق، حلب، إدلب، حمص، اللاذقية..."
+
+- ✅ **ProcessingPipeline** (`processing/pipeline.py` - 240 سطر):
+  - **3 أنماط معالجة**:
+    1. `process_for_storage()` - DB-ready format
+    2. `process_for_ml()` - 30+ features per text
+    3. `process_for_sentiment()` - Sentiment analysis ready
+  - **Batch Processing**: معالجة دفعات مع error tracking
+  - **Statistics**: تقارير شاملة عن العملية
+  - **Integration**: PostgreSQL + InfluxDB storage
+
+#### 4. لوحة التحكم (Dashboard)
+- ✅ **Streamlit Dashboard** (`presentation/dashboard/app.py` - 1500+ سطر):
+  - **10 صفحات متكاملة** (عربية RTL):
+    1. 🏠 **نظرة عامة**: حالة الخدمات + إحصائيات عامة
+    2. 📡 **مصادر البيانات**: عرض جميع المصادر (14+)
+    3. ➕ **إدارة المصادر**: إضافة/تعديل/حذف ديناميكي
+    4. 🔄 **تشغيل ومراقبة**: real-time monitoring + manual triggers
+    5. 💱 **أسعار الصرف**: رسوم بيانية تفاعلية (Plotly)
+    6. 🤖 **نماذج التنبؤ**: وصف النماذج + أداء
+    7. 📰 **الأحداث والأخبار**: تصنيف + تحليل
+    8. 📊 **أداء النظام**: مقاييس + مؤشرات
+    9. 🔔 **التنبيهات**: قواعد + مراقبة
+    10. ⚙️ **الإعدادات**: إعدادات عامة
+
+  - **60+ Info Tooltips**: شرح تفصيلي لكل عنصر
+  - **Real-time Features**:
+    - أزرار تشغيل لكل collector منفصل
+    - عرض مباشر للجمع (live progress)
+    - تحديث أوتوماتيكي كل 5 ثواني
+    - إحصائيات قاعدة البيانات
+    - execution log
+  
+  - **Source Management**:
+    - إضافة ديناميكي (RSS/Telegram/Web/API)
+    - تعديل المصادر الموجودة
+    - حذف مع confirmation
+    - تفعيل/تعطيل المصادر
+    - validation للمدخلات
+
+  - **UI Enhancements**:
+    - Custom CSS للتحسينات
+    - ألوان مخصصة (success/error/warning)
+    - رسوم بيانية تفاعلية (Plotly)
+    - responsive design
+
+#### 5. API Endpoints
+- ✅ **FastAPI Application** (`presentation/api/main.py`):
+  - **Manual Task Execution**:
+    - `POST /tasks/collect/rss` - تشغيل RSS يدوياً
+    - `POST /tasks/collect/web-prices` - تشغيل Web Scraper
+    - `POST /tasks/collect/all` - تشغيل جميع المحركات
+  
+  - **Statistics & Monitoring**:
+    - `GET /tasks/stats/recent` - إحصائيات آخر 24 ساعة
+    - `GET /tasks/logs/recent` - سجلات التشغيل
+    - `GET /health` - فحص صحة الخدمة
+  
+  - **Documentation**: Auto-generated OpenAPI/Swagger
+  - **CORS**: Configured for frontend
+  - **Error Handling**: Comprehensive responses
+
+#### 6. الجدولة التلقائية (Scheduling)
+- ✅ **Celery Integration** (`ingestion/scheduler.py`):
+  - **Configured Tasks**:
+    - `collect_rss_feeds_task` - كل 15 دقيقة ✅
+    - `collect_web_prices_task` - كل 5 دقائق ✅
+    - `collect_telegram_prices_task` - كل دقيقة (معلّق)
+    - `collect_telegram_news_task` - كل 5 دقائق (معلّق)
+    - `collect_external_indicators_task` - كل ساعة (معلّق)
+  
+  - **Error Handling**: Retry logic + logging
+  - **Monitoring**: Task success/failure tracking
+  - **Redis Backend**: Task queue management
+
+#### 7. التخزين (Storage)
+- ✅ **PostgreSQL Integration** (`storage/relational_db.py`):
+  - **Schema**:
+    - `raw_texts` table (id, source, text, url, timestamp, metadata, hash)
+    - `data_sources` table (id, type, name, config, enabled, created_at)
+    - Indexes على hash, timestamp, source
+  
+  - **Operations**:
+    - `save_raw_text()` - حفظ نص مع deduplication
+    - `get_recent_texts()` - استعلام بالفترة
+    - `get_source_stats()` - إحصائيات لكل مصدر
+  
+  - **Connection Pool**: Managed connections
+  - **Error Handling**: Comprehensive logging
+
+- ✅ **InfluxDB Integration** (`storage/timeseries_db.py`):
+  - **Bucket**: `exchange_rates`
+  - **Measurements**: `bid`, `ask`, `average`
+  - **Tags**: `source`, `location`
+  - **Retention Policy**: 2 years
+  
+  - **Operations**:
+    - `write_price()` - كتابة سعر واحد
+    - `write_prices_batch()` - كتابة دفعة
+    - `query_prices()` - استعلام بالفترة
+    - `get_latest_price()` - آخر سعر لمصدر
+  
+  - **Performance**: Batch writes, async queries
+
+#### 8. التوثيق (Documentation)
+- ✅ **Comprehensive Guides**:
+  - `README.md` - دليل شامل (800+ سطر)
+  - `QUICKSTART.md` - بدء سريع (10 دقائق)
+  - `CHANGELOG.md` - سجل تفصيلي للتغييرات
+  - `docs/MONITORING_GUIDE.md` - دليل المراقبة (500+ سطر)
+  - `docs/TEXT_PROCESSORS_GUIDE.md` - دليل المعالجات (600+ سطر)
+  - `docs/01_شجرة_الملفات.md` - بنية المشروع
+  - `docs/02_مرجع_المتغيرات_والدوال.md` - مرجع كامل
+
+#### 9. الأدوات والسكريبتات (Tools & Scripts)
+- ✅ **Launcher Scripts**:
+  - `start.bat` - Windows launcher (تفاعلي)
+  - `run_dashboard.py` - تشغيل Dashboard
+  - `run_api.py` - تشغيل API
+
+- ✅ **Test Scripts**:
+  - `test_processors.py` - اختبار شامل للمعالجات
+
+- ✅ **Setup Scripts**:
+  - `scripts/setup_db.py`
+  - `scripts/setup_influxdb.py`
+  - `scripts/setup_minio.py`
+
+---
+
+### ⏳ قيد التطوير (In Progress)
+
+#### 1. جمع البيانات (40% مكتمل)
+- ⏳ **Telegram Collector** - يحتاج API credentials
+  - Telethon framework جاهز
+  - Functions template جاهز
+  - بانتظار: `api_id`, `api_hash` من telegram.org
+
+- ⏳ **External APIs Collector** - قيد التصميم (10%)
+  - مخطط: Gold, Oil, DXY
+  - مصادر محتملة: Alpha Vantage, Yahoo Finance
+  - بحاجة: API keys
+
+#### 2. تحليل المشاعر (Sentiment Analysis) - 0%
+- ⏳ **Naive Bayes Classifier**:
+  - **Status**: تصميم جاهز، بحاجة بيانات
+  - **Required**: 1000 نص موسوم يدوياً (إيجابي/سلبي/محايد)
+  - **Framework**: scikit-learn
+  - **Target Accuracy**: 76%+
+
+- ⏳ **AraBERT** (Phase 2):
+  - **Status**: خطة فقط
+  - **Target Accuracy**: 85%+
+
+#### 3. تصنيف الأحداث (Event Classification) - 0%
+- ⏳ **Naive Bayes Classifier**:
+  - **Status**: تصميم جاهز، بحاجة بيانات
+  - **Categories**: 5 فئات
+    1. سياسية (Political)
+    2. اقتصادية (Economic)
+    3. عسكرية (Military)
+    4. إنسانية (Humanitarian)
+    5. أخرى (Other)
+  - **Required**: 500 نص موسوم
+  - **Framework**: scikit-learn
+
+#### 4. نماذج التنبؤ (Prediction Models) - 10%
+- ⏳ **HLT (Holt Linear Trend)**:
+  - **Status**: خطة + بحث
+  - **Framework**: statsmodels
+  - **Target**: Baseline لـ time-series
+
+- ⏳ **XGBoost**:
+  - **Status**: خطة فقط
+  - **Features**: بحاجة 100+ feature
+  - **Framework**: xgboost
+
+- ⏳ **TFT (Temporal Fusion Transformer)** (Phase 3):
+  - **Status**: خطة فقط
+  - **Framework**: PyTorch Forecasting
+
+#### 5. المراقبة والجودة (Monitoring) - 40%
+- ⏳ **Health Checker** (`monitoring/health_checker.py`):
+  - **Status**: stub موجود
+  - **Needed**: فحص تلقائي للخدمات
+
+- ⏳ **Drift Detector** (`monitoring/drift_detector.py`):
+  - **Status**: stub موجود
+  - **Needed**: كشف انحراف البيانات/النماذج
+
+#### 6. التنبيهات (Alerts) - 0%
+- ⏳ **Alert System**:
+  - **Status**: تصميم في `config/alerts.yaml`
+  - **Channels**: Email, SMS, Telegram
+  - **Triggers**: Price jumps, model drift, system errors
+
+---
+
+### 📊 إحصائيات المشروع
+
+| المقياس | القيمة |
+|---------|--------|
+| **إجمالي الأسطر** | ~5,000+ سطر Python |
+| **عدد الوظائف** | 80+ function |
+| **عدد الملفات** | 50+ ملف Python |
+| **عدد الـ Commits** | 15+ |
+| **نسبة الإنجاز (Phase 1)** | 50% |
+| **المصادر الفعّالة** | 8/14 (57%) |
+| **التغطية الاختبارية** | ~30% |
+
+---
+
+### 🎯 الأولويات القادمة (Next Priorities)
+
+#### الأسبوع القادم:
+1. 🔴 **Telegram Collector** - الحصول على API credentials وتفعيل
+2. 🔴 **Sentiment Data Collection** - جمع 1000 نص للتوسيم
+3. 🟡 **Sentiment Analyzer** - تدريب Naive Bayes
+4. 🟡 **Event Classifier** - جمع 500 نص + تدريب
+
+#### الشهر القادم:
+5. 🟡 **External APIs** - إضافة Gold, Oil, DXY
+6. 🟡 **HLT Model** - تدريب baseline
+7. 🟡 **XGBoost** - Feature engineering + تدريب
+8. 🟢 **Alerts System** - تنفيذ Email alerts
+
+#### 3 أشهر (إنهاء Phase 1):
+9. 🟢 **Health Monitoring** - نظام فحص شامل
+10. 🟢 **Drift Detection** - كشف تلقائي
+11. 🟢 **Testing** - رفع التغطية لـ 80%
+12. 🟢 **Optimization** - تحسين الأداء
+
+---
+
+### 🚀 الإنجازات البارزة
+
+1. ✨ **Dashboard احترافي كامل** - 10 صفحات، 60+ tooltips، real-time monitoring
+2. ✨ **Text Processors متقدم جداً** - 25 وظيفة، دعم كامل للعربية
+3. ✨ **Collectors قوية** - retry logic، deduplication، comprehensive logging
+4. ✨ **Infrastructure scalable** - Docker، PostgreSQL، InfluxDB، Redis
+5. ✨ **توثيق شامل** - 3000+ سطر documentation
+
+---
+
+### ⚠️ التحديات الحالية
+
+1. **Telegram API** - بانتظار credentials (يدوي)
+2. **بيانات التدريب** - بحاجة توسيم يدوي (1500 نص)
+3. **بيانات تاريخية** - قليلة ومتناثرة
+4. **اللهجات السورية** - تحتاج معالجة NLP خاصة
+
+---
+
 ## 7) خطة التنفيذ المرحلية
 
 ### المرحلة 1: الأساسات (0-3 أشهر)

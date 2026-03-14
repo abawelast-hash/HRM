@@ -1,22 +1,30 @@
 version: '3.8'
 
 services:
+  # ========================
+  # Infrastructure Services
+  # ========================
+  
   postgres:
     image: postgres:16-alpine
     container_name: shamin_postgres
     environment:
       POSTGRES_USER: shamin_user
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shamin_pass_2026}
       POSTGRES_DB: shamin_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./scripts:/scripts:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U shamin_user"]
+      test: ["CMD-SHELL", "pg_isready -U shamin_user -d shamin_db"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - shamin_network
+    restart: unless-stopped
 
   influxdb:
     image: influxdb:2.7-alpine
@@ -24,10 +32,10 @@ services:
     environment:
       DOCKER_INFLUXDB_INIT_MODE: setup
       DOCKER_INFLUXDB_INIT_USERNAME: admin
-      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-influx_pass_2026}
       DOCKER_INFLUXDB_INIT_ORG: shamin_org
       DOCKER_INFLUXDB_INIT_BUCKET: exchange_rates
-      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_TOKEN:-shamin_influx_token_2026}
     ports:
       - "8086:8086"
     volumes:
@@ -38,6 +46,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - shamin_network
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -52,13 +63,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - shamin_network
+    restart: unless-stopped
 
   minio:
     image: minio/minio:latest
     container_name: shamin_minio
     environment:
-      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
-      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minio_secret_2026}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -70,11 +84,20 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - shamin_network
+    restart: unless-stopped
 
-  web:
-    build: .
-    container_name: shamin_web
-    command: python -m uvicorn src.presentation.api.main:app --host 0.0.0.0 --port 8000
+  # ========================
+  # Application Services
+  # ========================
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shamin_api
+    command: python -m uvicorn src.presentation.api.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     depends_on:
@@ -85,18 +108,210 @@ services:
       influxdb:
         condition: service_healthy
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - POSTGRES_URL=postgresql://shamin_user:${POSTGRES_PASSWORD}@postgres:5432/shamin_db
-      - INFLUXDB_URL=http://influxdb:8086
-      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
-      - INFLUXDB_ORG=shamin_org
-      - INFLUXDB_BUCKET=exchange_rates
-      - MINIO_ENDPOINT=minio:9000
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      # Database
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: shamin_db
+      POSTGRES_USER: shamin_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shamin_pass_2026}
+      
+      # InfluxDB
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-shamin_influx_token_2026}
+      INFLUXDB_ORG: shamin_org
+      INFLUXDB_BUCKET: exchange_rates
+      
+      # Redis
+      REDIS_URL: redis://redis:6379/0
+      
+      # MinIO
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minio_admin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio_secret_2026}
+      
+      # Application
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
     volumes:
       - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - shamin_network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shamin_dashboard
+    command: streamlit run src/presentation/dashboard/app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    environment:
+      # Same as API
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: shamin_db
+      POSTGRES_USER: shamin_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shamin_pass_2026}
+      
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-shamin_influx_token_2026}
+      INFLUXDB_ORG: shamin_org
+      INFLUXDB_BUCKET: exchange_rates
+      
+      REDIS_URL: redis://redis:6379/0
+      
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minio_admin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio_secret_2026}
+      
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - shamin_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shamin_celery_worker
+    command: celery -A src.ingestion.scheduler worker --loglevel=info --concurrency=2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    environment:
+      # Same as API
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: shamin_db
+      POSTGRES_USER: shamin_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shamin_pass_2026}
+      
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-shamin_influx_token_2026}
+      INFLUXDB_ORG: shamin_org
+      INFLUXDB_BUCKET: exchange_rates
+      
+      REDIS_URL: redis://redis:6379/0
+      
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minio_admin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio_secret_2026}
+      
+      # Telegram (optional)
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      TELEGRAM_PHONE: ${TELEGRAM_PHONE:-}
+      
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
+      C_FORCE_ROOT: "true"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - shamin_network
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shamin_celery_beat
+    command: celery -A src.ingestion.scheduler beat --loglevel=info --schedule=/app/data/celerybeat-schedule
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    environment:
+      # Same as worker
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: shamin_db
+      POSTGRES_USER: shamin_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shamin_pass_2026}
+      
+      INFLUXDB_URL: http://influxdb:8086
+      INFLUXDB_TOKEN: ${INFLUXDB_TOKEN:-shamin_influx_token_2026}
+      INFLUXDB_ORG: shamin_org
+      INFLUXDB_BUCKET: exchange_rates
+      
+      REDIS_URL: redis://redis:6379/0
+      
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minio_admin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio_secret_2026}
+      
+      TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+      TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+      TELEGRAM_PHONE: ${TELEGRAM_PHONE:-}
+      
+      LOG_LEVEL: INFO
+      ENVIRONMENT: production
+      C_FORCE_ROOT: "true"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+    networks:
+      - shamin_network
+    restart: unless-stopped
+
+# ========================
+# Networks
+# ========================
+
+networks:
+  shamin_network:
+    driver: bridge
+
+# ========================
+# Volumes
+# ========================
+
+volumes:
+  postgres_data:
+    driver: local
+  influxdb_data:
+    driver: local
+  influxdb_config:
+    driver: local
+  redis_data:
+    driver: local
+  minio_data:
+    driver: local
 
   dashboard:
     build: .
