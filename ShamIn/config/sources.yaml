@@ -48,26 +48,26 @@ rss_sources:
     category: "news"
     active: true
 
-  - name: "reuters_meast"
-    url: "https://www.reuters.com/places/middle-east/feed/"
+  - name: "syria_steps"
+    url: "https://www.syriasteps.com/index.php?type=rss"
     frequency_minutes: 15
     category: "news"
     active: true
 
   - name: "sana_syria"
-    url: "https://www.sana.sy/feed/"
+    url: "https://sana.sy/feed/"
     frequency_minutes: 30
     category: "official"
     active: true
 
-  - name: "alaraby"
-    url: "https://www.alaraby.co.uk/feed"
+  - name: "rt_arabic"
+    url: "https://arabic.rt.com/rss/"
     frequency_minutes: 15
     category: "news"
     active: true
 
-  - name: "aljazeera_syria"
-    url: "https://www.aljazeera.net/xml/rss/syria.xml"
+  - name: "almayadeen"
+    url: "https://www.almayadeen.net/rss"
     frequency_minutes: 15
     category: "news"
     active: true

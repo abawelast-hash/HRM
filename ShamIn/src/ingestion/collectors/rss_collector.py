@@ -213,41 +213,46 @@ class RSSCollector:
             return
         
         try:
-            from src.storage.relational_db import get_session
-            from sqlalchemy import text
+            import psycopg2
+            import os
+            import json
             
-            session = get_session()
+            conn = psycopg2.connect(
+                host=os.getenv("POSTGRES_HOST", "postgres"),
+                port=os.getenv("POSTGRES_PORT", "5432"),
+                database=os.getenv("POSTGRES_DB", "shamin_db"),
+                user=os.getenv("POSTGRES_USER", "shamin_user"),
+                password=os.getenv("POSTGRES_PASSWORD", "")
+            )
+            cur = conn.cursor()
             
-            # إدخال في جدول raw_data
-            query = text("""
-                INSERT INTO raw_data (
-                    id, source, source_type, title, content, url, 
-                    language, collected_at, published_at, metadata
+            # إدخال في جدول raw_texts
+            cur.execute("""
+                INSERT INTO raw_texts (
+                    source_type, title, content, url, metadata, created_at
                 )
-                VALUES (
-                    :id, :source, 'rss', :title, :content, :link,
-                    :language, :collected_at, :published_at, :metadata
-                )
-                ON CONFLICT (id) DO NOTHING
-            """)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING
+            """, (
+                'rss',
+                article['title'],
+                article['content'],
+                article['link'],
+                json.dumps({
+                    'source': article['source'],
+                    'language': article['language'],
+                    'published_at': str(article['published_at']) if article['published_at'] else None,
+                    'raw_data': article['raw_data']
+                }),
+                article['collected_at']
+            ))
             
-            session.execute(query, {
-                'id': article['id'],
-                'source': article['source'],
-                'title': article['title'],
-                'content': article['content'],
-                'link': article['link'],
-                'language': article['language'],
-                'collected_at': article['collected_at'],
-                'published_at': article['published_at'],
-                'metadata': article['raw_data']
-            })
-            
-            session.commit()
-            session.close()
+            conn.commit()
+            cur.close()
+            conn.close()
             
         except Exception as e:
-            logger.error(f"خطأ في تخزين المقالة {article['id']}: {e}")
+            logger.error(f"خطأ في تخزين المقالة: {e}")
     
     def close(self):
         """إغلاق الجلسة."""
