@@ -1472,22 +1472,30 @@ elif page == "🔄 تشغيل ومراقبة":
     col_db1, col_db2, col_db3 = st.columns(3)
     
     try:
-        from src.storage.relational_db import RelationalDB
-        db = RelationalDB()
+        import psycopg2
+        conn = psycopg2.connect(
+            host=os.getenv("POSTGRES_HOST", "postgres"),
+            port=os.getenv("POSTGRES_PORT", "5432"),
+            database=os.getenv("POSTGRES_DB", "shamin_db"),
+            user=os.getenv("POSTGRES_USER", "shamin_user"),
+            password=os.getenv("POSTGRES_PASSWORD", "")
+        )
+        cur = conn.cursor()
         
         # عدد المقالات
-        result = db.execute_query("SELECT COUNT(*) as count FROM raw_news_text")
-        total_articles = result[0]['count'] if result else 0
+        cur.execute("SELECT COUNT(*) FROM raw_texts")
+        total_articles = cur.fetchone()[0] or 0
         
         # عدد المقالات اليوم
-        result = db.execute_query("""
-            SELECT COUNT(*) as count 
-            FROM raw_news_text 
-            WHERE collected_at::date = CURRENT_DATE
+        cur.execute("""
+            SELECT COUNT(*) 
+            FROM raw_texts 
+            WHERE created_at::date = CURRENT_DATE
         """)
-        today_articles = result[0]['count'] if result else 0
+        today_articles = cur.fetchone()[0] or 0
         
-        db.close()
+        cur.close()
+        conn.close()
         
         with col_db1:
             st.markdown(f"""
