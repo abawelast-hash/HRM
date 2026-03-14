@@ -1613,7 +1613,8 @@ elif page == "📂 البيانات المجمعة":
                 source_condition = "AND source_type = 'web'"
             
             query = f"""
-                SELECT id, source_type, source_name, 
+                SELECT id, source_type, 
+                       COALESCE(metadata->>'source', source_type) as source_name,
                        LEFT(content, 200) as content_preview,
                        created_at, metadata
                 FROM raw_texts 
@@ -1928,7 +1929,8 @@ elif page == "📂 البيانات المجمعة":
                     sources_str = ",".join([f"'{s}'" for s in search_source])
                     
                     query = f"""
-                        SELECT id, source_type, source_name, 
+                        SELECT id, source_type, 
+                               COALESCE(metadata->>'source', source_type) as source_name,
                                LEFT(content, 300) as content,
                                created_at
                         FROM raw_texts 
