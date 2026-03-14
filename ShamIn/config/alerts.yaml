@@ -1,0 +1,40 @@
+telegram_bot:
+  token: ${TELEGRAM_BOT_TOKEN}
+  chat_ids:
+    - ${ADMIN_CHAT_ID}
+
+alerts:
+  sharp_change:
+    enabled: true
+    threshold_percent: 3.0  # change > 3% in 1 hour
+    priority: "high"
+
+  prediction_error:
+    enabled: true
+    mape_threshold: 5.0
+    priority: "medium"
+
+  source_downtime:
+    enabled: true
+    threshold_minutes: 60
+    priority: "high"
+
+  data_drift:
+    enabled: true
+    ks_p_value_threshold: 0.05
+    priority: "medium"
+
+  model_degradation:
+    enabled: true
+    performance_drop_percent: 10.0
+    priority: "high"
+
+notifications:
+  daily_summary:
+    enabled: true
+    time: "08:00"  # UTC
+
+  weekly_report:
+    enabled: true
+    day: "Sunday"
+    time: "09:00"

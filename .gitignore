@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model files (large binaries)
+*.pth
+*.pt
+*.h5
+*.onnx
+
+# Data
+*.csv
+*.parquet
+
+# Logs
+logs/
+*.log
+
+# Normalizers
+old_code/models/normalizers/
+ShamIn/data/models/normalizers/
+ShamIn/data/models/checkpoints/
+ShamIn/data/processed/
+ShamIn/data/raw/

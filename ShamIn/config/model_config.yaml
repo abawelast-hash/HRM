@@ -1,0 +1,117 @@
+# ShamIn Model Configuration
+
+model_registry:
+  active_model: "Hybrid_v1"
+  device: "cuda"  # cuda or cpu
+  precision: "16-mixed"
+  seed: 42
+
+data:
+  frequency: 'H'  # Hourly
+  max_encoder_length: 168  # 7 days * 24 hours
+  max_prediction_length: 24  # 24 hours ahead
+  min_encoder_length: 24  # at least 1 day
+  gap_hours: 24  # prevent data leakage
+
+  train_ratio: 0.8
+  val_ratio: 0.2
+
+  interpolation:
+    method: "quadratic"
+    max_gap_hours: 72
+    flag_interpolated: true
+
+features:
+  time_varying_unknown_reals:
+    - Close
+    - MA10
+    - MA50
+    - RSI
+    - MACD
+    - ROC
+    - Momentum_20h
+    - Close_to_MA_ratio
+    - BB_position
+    - ATR
+    - gold_price_pct
+    - oil_price_pct
+    - dxy_pct
+    - lbp_rate_pct
+    - sentiment_score
+    - event_weight
+    - Relative_Returns
+
+  time_varying_known_categoricals:
+    - Hour
+    - Day_of_Week
+    - Month
+    - is_weekend
+    - is_holiday
+    - session_damascus
+    - session_overlap
+
+  static_categoricals: []
+
+  target: "Relative_Returns"
+  target_normalizer: "TorchNormalizer"
+
+tft:
+  hidden_size: 128
+  lstm_layers: 2
+  attention_head_size: 4
+  dropout: 0.3
+  hidden_continuous_size: 64
+
+  use_quantile_loss: true
+  quantiles: [0.05, 0.25, 0.5, 0.75, 0.95]
+
+  learning_rate: 0.001
+  reduce_on_plateau_patience: 4
+
+training:
+  max_epochs: 100
+  batch_size: null  # auto via batch_size_estimator
+  gradient_clip_val: 0.1
+
+  early_stopping_patience: 15
+
+  optuna_trials: 20
+  optuna_timeout: 3600
+
+  checkpoint_dir: "data/models/checkpoints"
+  save_top_k: 3
+  monitor: "val_loss"
+
+xgboost:
+  n_estimators: 500
+  max_depth: 6
+  learning_rate: 0.1
+  subsample: 0.8
+  colsample_bytree: 0.8
+  objective: "reg:squarederror"
+  early_stopping_rounds: 50
+
+hlt:
+  smoothing_level: 0.8
+  smoothing_trend: null  # auto
+  optimized: true
+
+sentiment_lstm:
+  embedding_dim: 300
+  hidden_units: 128
+  num_layers: 2
+  dropout: 0.3
+  bidirectional: true
+  learning_rate: 0.001
+  max_epochs: 50
+  batch_size: 64
+
+hybrid:
+  mode: "weighted_voting"  # weighted_voting, stacking, meta_learner
+  weights:
+    sentiment_path: 0.3
+    time_series_path: 0.4
+    baseline_path: 0.3
+
+  dynamic_weights: false
+  weight_update_frequency_days: 7

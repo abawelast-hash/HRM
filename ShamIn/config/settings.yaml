@@ -1,0 +1,30 @@
+project:
+  name: "ShamIn"
+  version: "1.0.0-beta"
+  description: "SYP/USD Exchange Rate Forecaster"
+  environment: "development"  # development, staging, production
+
+database:
+  postgres_url: ${POSTGRES_URL}
+  influxdb_url: ${INFLUXDB_URL}
+  influxdb_token: ${INFLUXDB_TOKEN}
+  influxdb_org: ${INFLUXDB_ORG}
+  redis_url: ${REDIS_URL}
+
+storage:
+  minio_endpoint: ${MINIO_ENDPOINT}
+  minio_access_key: ${MINIO_ACCESS_KEY}
+  minio_secret_key: ${MINIO_SECRET_KEY}
+  model_bucket: "models"
+  data_bucket: "raw-data"
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/shamin.log"
+
+monitoring:
+  enable_drift_detection: true
+  drift_check_frequency_hours: 24
+  enable_quality_checks: true
+  quality_check_frequency_hours: 6

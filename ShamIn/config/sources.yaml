@@ -1,0 +1,93 @@
+price_sources:
+  - name: "sp_today"
+    type: "web"
+    url: "https://sp-today.com/"
+    frequency_minutes: 5
+    parser: "beautifulsoup"
+    active: true
+
+  - name: "investing_com"
+    type: "web"
+    url: "https://www.investing.com/currencies/usd-syp"
+    frequency_minutes: 60
+    parser: "beautifulsoup"
+    active: true
+
+  - name: "central_bank_syria"
+    type: "web"
+    url: "http://www.banquecentrale.gov.sy/"
+    frequency_minutes: 1440  # daily
+    parser: "beautifulsoup"
+    active: true
+
+telegram_sources:
+  prices:
+    - name: "telegram_rates_1"
+      channel: "@syrian_exchange_rates"
+      frequency_minutes: 1
+      active: true
+      type: "price"
+
+    - name: "telegram_rates_2"
+      channel: "@damascus_market"
+      frequency_minutes: 2
+      active: true
+      type: "price"
+
+  news:
+    - name: "telegram_news_1"
+      channel: "@syria_economic_news"
+      frequency_minutes: 5
+      active: true
+      type: "news"
+
+rss_sources:
+  - name: "enab_baladi"
+    url: "https://www.enabbaladi.net/feed/"
+    frequency_minutes: 15
+    category: "news"
+    active: true
+
+  - name: "reuters_meast"
+    url: "https://www.reuters.com/places/middle-east/feed/"
+    frequency_minutes: 15
+    category: "news"
+    active: true
+
+  - name: "sana_syria"
+    url: "https://www.sana.sy/feed/"
+    frequency_minutes: 30
+    category: "official"
+    active: true
+
+  - name: "alaraby"
+    url: "https://www.alaraby.co.uk/feed"
+    frequency_minutes: 15
+    category: "news"
+    active: true
+
+  - name: "aljazeera_syria"
+    url: "https://www.aljazeera.net/xml/rss/syria.xml"
+    frequency_minutes: 15
+    category: "news"
+    active: true
+
+external_apis:
+  - name: "gold_price"
+    endpoint: "https://goldprice.org/gold-price-api"
+    frequency_minutes: 60
+    metric: "XAU_USD"
+    active: true
+
+  - name: "oil_price"
+    endpoint: "https://oilprice.com/api"
+    frequency_minutes: 60
+    metric: "BRENT"
+    active: true
+
+  - name: "dxy_index"
+    url: "https://www.investing.com/indices/usdollar"
+    frequency_minutes: 1440  # daily
+    parser: "beautifulsoup"
+    metric: "DXY"
+    active: true
