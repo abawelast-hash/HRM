@@ -24,7 +24,7 @@ aiohttp>=3.9.0             # Async HTTP
 arabic-reshaper>=3.0.0
 python-bidi>=0.4.2
 camel-tools>=1.5.2
-farasasegmenter>=0.0.14
+# farasasegmenter - optional, install manually if needed
 
 # === Infrastructure ===
 psycopg2-binary>=2.9.9     # PostgreSQL
