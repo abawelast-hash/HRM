@@ -458,8 +458,9 @@ with st.sidebar:
             "🏠 نظرة عامة",
             "📡 مصادر البيانات",
             "➕ إدارة المصادر",
-            "� تشغيل ومراقبة",
-            "�💱 أسعار الصرف",
+            "🔄 تشغيل ومراقبة",
+            "📂 البيانات المجمعة",
+            "💱 أسعار الصرف",
             "🤖 نماذج التنبؤ",
             "📰 الأحداث والأخبار",
             "📊 أداء النظام",
@@ -1517,6 +1518,444 @@ elif page == "🔄 تشغيل ومراقبة":
             
     except Exception as e:
         st.error(f"خطأ في جلب الإحصائيات: {str(e)}")
+
+
+# ══════════════════════════════════════════════════════════
+# صفحة: البيانات المجمعة
+# ══════════════════════════════════════════════════════════
+
+elif page == "📂 البيانات المجمعة":
+    st.markdown(f"""
+    <h1 style="text-align:right;">
+        📂 البيانات المجمعة
+        {info_tip("عرض جميع البيانات التي تم جمعها من المصادر المختلفة. يمكنك تصفية وبحث وتصدير البيانات.")}
+    </h1>
+    """, unsafe_allow_html=True)
+
+    # ── تبويبات البيانات ──
+    data_tab1, data_tab2, data_tab3, data_tab4 = st.tabs([
+        "📰 النصوص والأخبار",
+        "💰 الأسعار المجمعة", 
+        "📊 إحصائيات الجمع",
+        "🔍 البحث المتقدم"
+    ])
+
+    # ════════════════════════════════════════════════════════
+    # Tab 1: النصوص والأخبار
+    # ════════════════════════════════════════════════════════
+    with data_tab1:
+        st.markdown(f"""
+        <div class="section-header">
+            <h2>📰 النصوص والأخبار المجمعة</h2>
+            {info_tip("جميع النصوص التي تم جمعها من RSS و Telegram. يتم تخزينها في PostgreSQL مع تحليل أولي.")}
+        </div>
+        """, unsafe_allow_html=True)
+
+        # فلاتر
+        col_filter1, col_filter2, col_filter3 = st.columns(3)
+        with col_filter1:
+            source_filter = st.selectbox(
+                "تصفية حسب المصدر",
+                ["الكل", "RSS", "Telegram", "Web"],
+                help="اختر نوع المصدر"
+            )
+        with col_filter2:
+            date_filter = st.selectbox(
+                "الفترة الزمنية",
+                ["آخر ساعة", "آخر 24 ساعة", "آخر أسبوع", "آخر شهر", "الكل"],
+                index=1,
+                help="اختر الفترة الزمنية"
+            )
+        with col_filter3:
+            limit_filter = st.number_input(
+                "عدد النتائج",
+                min_value=10,
+                max_value=500,
+                value=50,
+                step=10,
+                help="عدد السجلات المعروضة"
+            )
+
+        # جلب البيانات
+        try:
+            import psycopg2
+            conn = psycopg2.connect(
+                host=os.getenv("POSTGRES_HOST", "postgres"),
+                port=os.getenv("POSTGRES_PORT", "5432"),
+                database=os.getenv("POSTGRES_DB", "shamin_db"),
+                user=os.getenv("POSTGRES_USER", "shamin_user"),
+                password=os.getenv("POSTGRES_PASSWORD", "")
+            )
+            
+            # بناء الاستعلام
+            time_filter = {
+                "آخر ساعة": "1 hour",
+                "آخر 24 ساعة": "24 hours",
+                "آخر أسبوع": "7 days",
+                "آخر شهر": "30 days",
+                "الكل": "100 years"
+            }.get(date_filter, "24 hours")
+            
+            source_condition = ""
+            if source_filter == "RSS":
+                source_condition = "AND source_type = 'rss'"
+            elif source_filter == "Telegram":
+                source_condition = "AND source_type = 'telegram'"
+            elif source_filter == "Web":
+                source_condition = "AND source_type = 'web'"
+            
+            query = f"""
+                SELECT id, source_type, source_name, 
+                       LEFT(content, 200) as content_preview,
+                       created_at, metadata
+                FROM raw_texts 
+                WHERE created_at > NOW() - INTERVAL '{time_filter}'
+                {source_condition}
+                ORDER BY created_at DESC
+                LIMIT {limit_filter}
+            """
+            
+            with conn.cursor() as cur:
+                cur.execute(query)
+                rows = cur.fetchall()
+                columns = ['ID', 'النوع', 'المصدر', 'المحتوى', 'التاريخ', 'البيانات الوصفية']
+            
+            conn.close()
+            
+            if rows:
+                # عرض الإحصائيات
+                st.markdown(f"""
+                <div class="status-badge status-running" style="display:inline-block; margin-bottom:15px;">
+                    📊 تم العثور على {len(rows)} سجل
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # عرض البيانات في جدول
+                import pandas as pd
+                df = pd.DataFrame(rows, columns=columns)
+                
+                # تنسيق التاريخ
+                df['التاريخ'] = pd.to_datetime(df['التاريخ']).dt.strftime('%Y-%m-%d %H:%M')
+                
+                # أيقونات للأنواع
+                type_icons = {'rss': '📰', 'telegram': '📱', 'web': '🌐'}
+                df['النوع'] = df['النوع'].apply(lambda x: f"{type_icons.get(x, '📄')} {x}")
+                
+                # عرض الجدول
+                st.dataframe(
+                    df[['ID', 'النوع', 'المصدر', 'المحتوى', 'التاريخ']],
+                    use_container_width=True,
+                    height=400
+                )
+                
+                # عرض تفاصيل عنصر مختار
+                st.markdown("---")
+                st.markdown("### 🔍 عرض تفاصيل سجل")
+                selected_id = st.selectbox(
+                    "اختر ID للعرض التفصيلي",
+                    options=[row[0] for row in rows],
+                    help="اختر سجل لعرض تفاصيله كاملة"
+                )
+                
+                if selected_id:
+                    selected_row = next((r for r in rows if r[0] == selected_id), None)
+                    if selected_row:
+                        with st.expander("📄 التفاصيل الكاملة", expanded=True):
+                            st.markdown(f"**المصدر:** {selected_row[1]} / {selected_row[2]}")
+                            st.markdown(f"**التاريخ:** {selected_row[4]}")
+                            st.markdown("**المحتوى:**")
+                            st.text_area("", value=selected_row[3], height=150, disabled=True)
+                            if selected_row[5]:
+                                st.markdown("**البيانات الوصفية:**")
+                                st.json(selected_row[5])
+            else:
+                st.info("📭 لا توجد بيانات مجمعة في الفترة المحددة. جرّب تشغيل محركات الجمع من صفحة 'تشغيل ومراقبة'.")
+                
+        except Exception as e:
+            st.warning(f"⚠️ تعذر الاتصال بقاعدة البيانات: {str(e)}")
+            st.info("💡 تأكد من أن PostgreSQL يعمل وأن الجداول مُنشأة.")
+
+    # ════════════════════════════════════════════════════════
+    # Tab 2: الأسعار المجمعة
+    # ════════════════════════════════════════════════════════
+    with data_tab2:
+        st.markdown(f"""
+        <div class="section-header">
+            <h2>💰 الأسعار المجمعة من المصادر</h2>
+            {info_tip("أسعار الصرف التي تم جمعها من مواقع الأسعار و Telegram. يتم تخزينها في InfluxDB للتحليل الزمني.")}
+        </div>
+        """, unsafe_allow_html=True)
+
+        # محاولة جلب آخر الأسعار من API
+        try:
+            import requests
+            response = requests.post(
+                f"http://{os.getenv('API_HOST', 'api')}:8000/tasks/collect/web-prices",
+                timeout=30
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                
+                if result.get("status") == "success":
+                    details = result.get("result", {}).get("details", [])
+                    
+                    if details:
+                        st.markdown(f"""
+                        <div class="status-badge status-running" style="display:inline-block; margin-bottom:15px;">
+                            ✅ تم جلب {len(details)} سعر
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # عرض الأسعار في بطاقات
+                        cols = st.columns(min(len(details), 3))
+                        for idx, price_info in enumerate(details):
+                            with cols[idx % 3]:
+                                status_class = "status-running" if price_info.get("success") else "status-error"
+                                st.markdown(f"""
+                                <div class="metric-card">
+                                    <h3>🏦 {price_info.get('source', 'Unknown')}</h3>
+                                    <div class="value">{price_info.get('price', 'N/A')}</div>
+                                    <div class="sub">USD/SYP</div>
+                                    <span class="status-badge {status_class}">
+                                        {'✓ نجح' if price_info.get('success') else '✗ فشل'}
+                                    </span>
+                                </div>
+                                """, unsafe_allow_html=True)
+                    else:
+                        st.info("📭 لم يتم جلب أي أسعار حتى الآن.")
+                else:
+                    st.warning(f"⚠️ فشل جلب الأسعار: {result.get('error', 'Unknown error')}")
+        except requests.exceptions.RequestException as e:
+            st.info("💡 اضغط الزر أدناه لجمع الأسعار يدوياً")
+        except Exception as e:
+            st.warning(f"⚠️ خطأ: {str(e)}")
+
+        # زر جمع الأسعار يدوياً
+        st.markdown("---")
+        if st.button("🔄 جمع الأسعار الآن", type="primary", use_container_width=True):
+            with st.spinner("جارٍ جمع الأسعار..."):
+                try:
+                    import requests
+                    response = requests.post(
+                        f"http://{os.getenv('API_HOST', 'api')}:8000/tasks/collect/web-prices",
+                        timeout=60
+                    )
+                    if response.status_code == 200:
+                        st.success("✅ تم جمع الأسعار بنجاح!")
+                        st.json(response.json())
+                    else:
+                        st.error(f"❌ فشل: {response.text}")
+                except Exception as e:
+                    st.error(f"❌ خطأ: {str(e)}")
+
+    # ════════════════════════════════════════════════════════
+    # Tab 3: إحصائيات الجمع
+    # ════════════════════════════════════════════════════════
+    with data_tab3:
+        st.markdown(f"""
+        <div class="section-header">
+            <h2>📊 إحصائيات عمليات الجمع</h2>
+            {info_tip("ملخص إحصائي لجميع عمليات جمع البيانات: عدد السجلات حسب المصدر والتاريخ.")}
+        </div>
+        """, unsafe_allow_html=True)
+
+        try:
+            import psycopg2
+            conn = psycopg2.connect(
+                host=os.getenv("POSTGRES_HOST", "postgres"),
+                port=os.getenv("POSTGRES_PORT", "5432"),
+                database=os.getenv("POSTGRES_DB", "shamin_db"),
+                user=os.getenv("POSTGRES_USER", "shamin_user"),
+                password=os.getenv("POSTGRES_PASSWORD", "")
+            )
+            
+            with conn.cursor() as cur:
+                # إجمالي السجلات
+                cur.execute("SELECT COUNT(*) FROM raw_texts")
+                total_count = cur.fetchone()[0]
+                
+                # حسب المصدر
+                cur.execute("""
+                    SELECT source_type, COUNT(*) 
+                    FROM raw_texts 
+                    GROUP BY source_type 
+                    ORDER BY COUNT(*) DESC
+                """)
+                by_source = cur.fetchall()
+                
+                # حسب اليوم (آخر 7 أيام)
+                cur.execute("""
+                    SELECT DATE(created_at) as day, COUNT(*) 
+                    FROM raw_texts 
+                    WHERE created_at > NOW() - INTERVAL '7 days'
+                    GROUP BY DATE(created_at) 
+                    ORDER BY day DESC
+                """)
+                by_day = cur.fetchall()
+                
+                # آخر جمع
+                cur.execute("SELECT MAX(created_at) FROM raw_texts")
+                last_collection = cur.fetchone()[0]
+            
+            conn.close()
+            
+            # عرض الإحصائيات
+            col_stat1, col_stat2, col_stat3 = st.columns(3)
+            
+            with col_stat1:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>📊 إجمالي السجلات</h3>
+                    <div class="value">{total_count:,}</div>
+                    <div class="sub">في قاعدة البيانات</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_stat2:
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>📁 أنواع المصادر</h3>
+                    <div class="value">{len(by_source)}</div>
+                    <div class="sub">نوع مختلف</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_stat3:
+                last_time = last_collection.strftime('%H:%M %Y-%m-%d') if last_collection else "N/A"
+                st.markdown(f"""
+                <div class="metric-card">
+                    <h3>🕐 آخر جمع</h3>
+                    <div class="value" style="font-size:18px;">{last_time}</div>
+                    <div class="sub">آخر عملية</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # رسم بياني حسب المصدر
+            if by_source:
+                st.markdown("### 📈 توزيع السجلات حسب المصدر")
+                import plotly.express as px
+                import pandas as pd
+                
+                df_source = pd.DataFrame(by_source, columns=['المصدر', 'العدد'])
+                fig = px.pie(df_source, values='العدد', names='المصدر', 
+                            title='', hole=0.4,
+                            color_discrete_sequence=px.colors.qualitative.Set3)
+                fig.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#e2e8f0')
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # رسم بياني حسب اليوم
+            if by_day:
+                st.markdown("### 📅 السجلات حسب اليوم (آخر 7 أيام)")
+                df_day = pd.DataFrame(by_day, columns=['اليوم', 'العدد'])
+                df_day['اليوم'] = pd.to_datetime(df_day['اليوم']).dt.strftime('%m-%d')
+                
+                fig2 = px.bar(df_day, x='اليوم', y='العدد',
+                             title='',
+                             color='العدد',
+                             color_continuous_scale='blues')
+                fig2.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(color='#e2e8f0'),
+                    xaxis=dict(title=''),
+                    yaxis=dict(title='عدد السجلات')
+                )
+                st.plotly_chart(fig2, use_container_width=True)
+                
+        except Exception as e:
+            st.warning(f"⚠️ تعذر جلب الإحصائيات: {str(e)}")
+            st.info("💡 تأكد من أن قاعدة البيانات تعمل وتحتوي على بيانات.")
+
+    # ════════════════════════════════════════════════════════
+    # Tab 4: البحث المتقدم
+    # ════════════════════════════════════════════════════════
+    with data_tab4:
+        st.markdown(f"""
+        <div class="section-header">
+            <h2>🔍 البحث المتقدم في البيانات</h2>
+            {info_tip("ابحث في جميع البيانات المجمعة باستخدام كلمات مفتاحية أو تعبيرات نمطية.")}
+        </div>
+        """, unsafe_allow_html=True)
+
+        search_query = st.text_input(
+            "🔎 ابحث في المحتوى",
+            placeholder="مثال: دولار، سعر، ارتفاع...",
+            help="أدخل كلمة أو عبارة للبحث في جميع النصوص المجمعة"
+        )
+
+        col_search1, col_search2 = st.columns(2)
+        with col_search1:
+            search_source = st.multiselect(
+                "المصادر",
+                ["rss", "telegram", "web"],
+                default=["rss", "telegram", "web"],
+                help="اختر المصادر للبحث فيها"
+            )
+        with col_search2:
+            search_limit = st.slider(
+                "عدد النتائج",
+                min_value=10,
+                max_value=200,
+                value=50,
+                help="الحد الأقصى للنتائج"
+            )
+
+        if st.button("🔍 بحث", type="primary"):
+            if search_query:
+                try:
+                    import psycopg2
+                    conn = psycopg2.connect(
+                        host=os.getenv("POSTGRES_HOST", "postgres"),
+                        port=os.getenv("POSTGRES_PORT", "5432"),
+                        database=os.getenv("POSTGRES_DB", "shamin_db"),
+                        user=os.getenv("POSTGRES_USER", "shamin_user"),
+                        password=os.getenv("POSTGRES_PASSWORD", "")
+                    )
+                    
+                    sources_str = ",".join([f"'{s}'" for s in search_source])
+                    
+                    query = f"""
+                        SELECT id, source_type, source_name, 
+                               LEFT(content, 300) as content,
+                               created_at
+                        FROM raw_texts 
+                        WHERE content ILIKE %s
+                        AND source_type IN ({sources_str})
+                        ORDER BY created_at DESC
+                        LIMIT {search_limit}
+                    """
+                    
+                    with conn.cursor() as cur:
+                        cur.execute(query, (f'%{search_query}%',))
+                        results = cur.fetchall()
+                    
+                    conn.close()
+                    
+                    if results:
+                        st.success(f"✅ تم العثور على {len(results)} نتيجة")
+                        
+                        for row in results:
+                            with st.expander(f"📄 {row[2]} | {row[4].strftime('%Y-%m-%d %H:%M')}"):
+                                st.markdown(f"**النوع:** {row[1]}")
+                                st.markdown(f"**المصدر:** {row[2]}")
+                                # تمييز كلمة البحث
+                                highlighted = row[3].replace(
+                                    search_query, 
+                                    f"**:orange[{search_query}]**"
+                                )
+                                st.markdown(highlighted)
+                    else:
+                        st.info(f"📭 لم يتم العثور على نتائج لـ '{search_query}'")
+                        
+                except Exception as e:
+                    st.error(f"❌ خطأ في البحث: {str(e)}")
+            else:
+                st.warning("⚠️ أدخل كلمة للبحث")
 
 
 # ══════════════════════════════════════════════════════════
