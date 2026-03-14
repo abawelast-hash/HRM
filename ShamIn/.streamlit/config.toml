@@ -28,7 +28,7 @@ serverPort = 8501
 enableCORS = false
 
 # Enables support for Cross-Site Request Forgery (XSRF) protection
-enableXsrfProtection = true
+enableXsrfProtection = false
 
 # Max size, in megabytes, for files uploaded with the file_uploader
 maxUploadSize = 200
