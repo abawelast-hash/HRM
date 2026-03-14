@@ -1,6 +1,7 @@
 """ShamIn — FastAPI application."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from src.presentation.api.routes.tasks import router as tasks_router
 
 app = FastAPI(
     title="ShamIn API",
@@ -15,6 +16,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(tasks_router)
 
 
 @app.get("/")

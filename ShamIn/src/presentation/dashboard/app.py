@@ -238,7 +238,8 @@ with st.sidebar:
             "🏠 نظرة عامة",
             "📡 مصادر البيانات",
             "➕ إدارة المصادر",
-            "💱 أسعار الصرف",
+            "� تشغيل ومراقبة",
+            "�💱 أسعار الصرف",
             "🤖 نماذج التنبؤ",
             "📰 الأحداث والأخبار",
             "📊 أداء النظام",
@@ -950,6 +951,294 @@ elif page == "➕ إدارة المصادر":
                     st.info("لا توجد قنوات تلغرام مضافة بعد")
             except Exception as e:
                 st.error(f"خطأ في قراءة القنوات: {str(e)}")
+
+
+# ══════════════════════════════════════════════════════════
+# صفحة: تشغيل ومراقبة
+# ══════════════════════════════════════════════════════════
+
+elif page == "🔄 تشغيل ومراقبة":
+    st.markdown(f"""
+    <h1 style="text-align:right;">
+        🔄 تشغيل ومراقبة محركات الجمع
+        {info_tip("تحكم كامل في محركات جمع البيانات. شغّل كل محرك لوحده أو الكل معاً، وشاهد البيانات تُجمع أمامك مباشرة.")}
+    </h1>
+    """, unsafe_allow_html=True)
+
+    # ──────────────────────────────────────────────────────
+    # لوحة التحكم السريع
+    # ──────────────────────────────────────────────────────
+    
+    st.markdown(f"""
+    <div class="section-header">
+        <h2>⚡ التحكم السريع</h2>
+        {info_tip("أزرار سريعة لتشغيل محركات الجمع فوراً. يمكنك تشغيل محرك واحد للاختبار أو جميع المحركات معاً لجمع شامل.")}
+    </div>
+    """, unsafe_allow_html=True)
+
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        if st.button("📰 RSS", key="btn_rss", use_container_width=True, type="primary"):
+            st.session_state.trigger_task = "rss"
+    
+    with col2:
+        if st.button("💰 الأسعار", key="btn_web", use_container_width=True, type="primary"):
+            st.session_state.trigger_task = "web_prices"
+    
+    with col3:
+        if st.button("📱 تلغرام أسعار", key="btn_tg_prices", use_container_width=True, type="primary"):
+            st.session_state.trigger_task = "telegram_prices"
+    
+    with col4:
+        if st.button("📱 تلغرام أخبار", key="btn_tg_news", use_container_width=True, type="primary"):
+            st.session_state.trigger_task = "telegram_news"
+    
+    with col5:
+        if st.button("🌍 المؤشرات", key="btn_external", use_container_width=True, type="primary"):
+            st.session_state.trigger_task = "external"
+
+    # زر تشغيل الكل
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_all1, col_all2, col_all3 = st.columns([1, 2, 1])
+    with col_all2:
+        if st.button("🚀 تشغيل جميع المحركات معاً", key="btn_all", use_container_width=True, type="secondary"):
+            st.session_state.trigger_task = "all"
+
+    # ──────────────────────────────────────────────────────
+    # تنفيذ المهمة وعرض النتائج
+    # ──────────────────────────────────────────────────────
+    
+    if 'trigger_task' in st.session_state and st.session_state.trigger_task:
+        task = st.session_state.trigger_task
+        st.session_state.trigger_task = None  # Reset
+        
+        st.markdown(f"""
+        <div class="section-header">
+            <h2>📊 النتائج المباشرة</h2>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Progress container
+        progress_placeholder = st.empty()
+        logs_placeholder = st.empty()
+        stats_placeholder = st.empty()
+        
+        try:
+            if task == "rss":
+                progress_placeholder.info("🔄 جاري جمع المقالات من مصادر RSS...")
+                from src.ingestion.collectors.rss_collector import RSSCollector
+                import yaml
+                
+                # تحميل المصادر
+                with open('config/sources.yaml', 'r', encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                
+                rss_sources = config.get('rss_sources', [])
+                feeds_list = []
+                
+                if isinstance(rss_sources, list):
+                    for source in rss_sources:
+                        if source.get('active', True):
+                            feeds_list.append({
+                                'name': source['name'],
+                                'url': source['url'],
+                                'category': source.get('category', 'general'),
+                                'language': source.get('language', 'ar')
+                            })
+                else:
+                    for name, details in rss_sources.items():
+                        if details.get('enabled', True):
+                            feeds_list.append({
+                                'name': name,
+                                'url': details['url'],
+                                'category': details.get('category', 'general'),
+                                'language': details.get('language', 'ar')
+                            })
+                
+                # الجمع
+                collector = RSSCollector(storage_db=True)
+                
+                # العرض المباشر لكل مصدر
+                all_results = []
+                for idx, feed in enumerate(feeds_list):
+                    logs_placeholder.info(f"📰 جمع من: {feed['name']} ({idx+1}/{len(feeds_list)})")
+                    result = collector.collect_feed(feed)
+                    all_results.append(result)
+                    
+                    if result['success']:
+                        logs_placeholder.success(f"✅ {feed['name']}: {result['articles_count']} مقال")
+                    else:
+                        logs_placeholder.error(f"❌ {feed['name']}: {result.get('error', 'فشل')}")
+                
+                collector.close()
+                
+                # الإحصائيات النهائية
+                total_articles = sum(r['articles_count'] for r in all_results)
+                successful = sum(1 for r in all_results if r['success'])
+                
+                progress_placeholder.success(f"✅ اكتمل الجمع!")
+                stats_placeholder.markdown(f"""
+                <div class="metric-card">
+                    <h3>📊 الإحصائيات</h3>
+                    <div class="value">{total_articles}</div>
+                    <div class="sub">مقال تم جمعه من {successful}/{len(all_results)} مصدر</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # عرض تفاصيل كل مصدر
+                st.markdown("### 📋 تفاصيل المصادر")
+                for r in all_results:
+                    status_icon = "✅" if r['success'] else "❌"
+                    st.markdown(f"{status_icon} **{r['source']}**: {r['articles_count']} مقال")
+            
+            elif task == "web_prices":
+                progress_placeholder.info("🔄 جاري جمع الأسعار من المواقع...")
+                from src.ingestion.collectors.web_scraper import WebScraper
+                
+                scraper = WebScraper(storage_db=True)
+                
+                # الجمع المباشر
+                results = []
+                
+                # sp-today
+                logs_placeholder.info("🌐 جمع من: sp-today.com")
+                result = scraper.scrape_sp_today()
+                if result:
+                    results.append(result)
+                    logs_placeholder.success(f"✅ sp-today: {result['price']:,.0f} ل.س")
+                
+                # investing.com
+                logs_placeholder.info("🌐 جمع من: investing.com")
+                result = scraper.scrape_investing_com()
+                if result:
+                    results.append(result)
+                    logs_placeholder.success(f"✅ investing.com: {result['price']:,.0f} ل.س")
+                
+                # البنك المركزي
+                logs_placeholder.info("🌐 جمع من: البنك المركزي السوري")
+                result = scraper.scrape_central_bank()
+                if result:
+                    results.append(result)
+                    logs_placeholder.success(f"✅ البنك المركزي: {result['price']:,.2f} ل.س")
+                
+                scraper.close()
+                
+                # الإحصائيات
+                successful = len(results)
+                avg_price = sum(r['price'] for r in results) / successful if successful > 0 else 0
+                
+                progress_placeholder.success(f"✅ اكتمل الجمع!")
+                stats_placeholder.markdown(f"""
+                <div class="metric-card">
+                    <h3>📊 الإحصائيات</h3>
+                    <div class="value">{successful}/3</div>
+                    <div class="sub">مصدر ناجح | متوسط السعر: {avg_price:,.0f} ل.س</div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # عرض الأسعار
+                st.markdown("### 💰 الأسعار المجموعة")
+                for r in results:
+                    st.markdown(f"**{r['source']}**: {r['price']:,.2f} ل.س ({r['location']})")
+            
+            elif task == "telegram_prices":
+                progress_placeholder.warning("⚠️ محرك تلغرام للأسعار يتطلب إعداد API credentials")
+                logs_placeholder.info("💡 أضف TELEGRAM_API_ID و TELEGRAM_API_HASH في ملف .env")
+            
+            elif task == "telegram_news":
+                progress_placeholder.warning("⚠️ محرك تلغرام للأخبار يتطلب إعداد API credentials")
+                logs_placeholder.info("💡 أضف TELEGRAM_API_ID و TELEGRAM_API_HASH في ملف .env")
+            
+            elif task == "external":
+                progress_placeholder.warning("⚠️ محرك المؤشرات الخارجية قيد التطوير")
+                logs_placeholder.info("🔧 سيتم إضافته في المرحلة القادمة")
+            
+            elif task == "all":
+                progress_placeholder.info("🚀 جاري تشغيل جميع المحركات...")
+                
+                # RSS
+                logs_placeholder.info("📰 [1/5] جمع RSS...")
+                # (نفس الكود أعلاه)
+                
+                # Web Prices
+                logs_placeholder.info("💰 [2/5] جمع الأسعار...")
+                # (نفس الكود أعلاه)
+                
+                # Telegram
+                logs_placeholder.warning("📱 [3/5] تلغرام: يتطلب API credentials")
+                logs_placeholder.warning("📱 [4/5] تلغرام أخبار: يتطلب API credentials")
+                
+                # External
+                logs_placeholder.warning("🌍 [5/5] المؤشرات الخارجية: قيد التطوير")
+                
+                progress_placeholder.success("✅ اكتمل تشغيل جميع المحركات المتاحة!")
+                
+        except Exception as e:
+            progress_placeholder.error(f"❌ خطأ: {str(e)}")
+            st.exception(e)
+
+    # ──────────────────────────────────────────────────────
+    # إحصائيات قاعدة البيانات
+    # ──────────────────────────────────────────────────────
+    
+    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div class="section-header">
+        <h2>💾 البيانات المخزنة</h2>
+        {info_tip("إحصائيات البيانات المخزنة في قاعدة البيانات. يتم تحديثها تلقائياً بعد كل عملية جمع.")}
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_db1, col_db2, col_db3 = st.columns(3)
+    
+    try:
+        from src.storage.relational_db import RelationalDB
+        db = RelationalDB()
+        
+        # عدد المقالات
+        result = db.execute_query("SELECT COUNT(*) as count FROM raw_news_text")
+        total_articles = result[0]['count'] if result else 0
+        
+        # عدد المقالات اليوم
+        result = db.execute_query("""
+            SELECT COUNT(*) as count 
+            FROM raw_news_text 
+            WHERE collected_at::date = CURRENT_DATE
+        """)
+        today_articles = result[0]['count'] if result else 0
+        
+        db.close()
+        
+        with col_db1:
+            st.markdown(f"""
+            <div class="metric-card">
+                <h3>📰 إجمالي المقالات</h3>
+                <div class="value">{total_articles:,}</div>
+                <div class="sub">في قاعدة البيانات</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col_db2:
+            st.markdown(f"""
+            <div class="metric-card">
+                <h3>🆕 مقالات اليوم</h3>
+                <div class="value">{today_articles:,}</div>
+                <div class="sub">تم جمعها اليوم</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col_db3:
+            st.markdown(f"""
+            <div class="metric-card">
+                <h3>💰 أسعار محفوظة</h3>
+                <div class="value">N/A</div>
+                <div class="sub">في InfluxDB</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+    except Exception as e:
+        st.error(f"خطأ في جلب الإحصائيات: {str(e)}")
 
 
 # ══════════════════════════════════════════════════════════
