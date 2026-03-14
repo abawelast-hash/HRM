@@ -6,13 +6,13 @@
 
 ### نظرة عامة
 
-المشروع يستخدم 7 جداول مترابطة:
+المشروع يستخدم الجداول الأساسية التالية:
 
 ```
-sources ──1:N──→ raw_news ──1:1──→ processed_news
-                                        │
-                                   classified_events
-                                        
+data_sources ──1:N──→ raw_texts ──1:1──→ processed_news
+                                              │
+                                        classified_events
+                                              
 predictions ←── model_performance
                                         
 drift_monitoring (مستقل)
@@ -20,7 +20,79 @@ drift_monitoring (مستقل)
 
 ---
 
-### جدول 1: `sources` — مصادر البيانات
+### جدول 1: `raw_texts` — النصوص المجمعة (جدول جديد)
+
+| العمود | النوع | القيود | الوصف |
+|--------|-------|--------|-------|
+| `id` | `SERIAL` | PRIMARY KEY | معرف تسلسلي |
+| `source_type` | `VARCHAR(50)` | NOT NULL | نوع: `rss`, `telegram`, `web` |
+| `title` | `TEXT` | — | عنوان الخبر |
+| `content` | `TEXT` | NOT NULL | المحتوى الكامل |
+| `url` | `TEXT` | — | رابط المصدر |
+| `metadata` | `JSONB` | — | بيانات إضافية (source, language, published_at) |
+| `created_at` | `TIMESTAMP` | DEFAULT NOW | وقت الجمع |
+
+**الفهارس**: 
+- `source_type` (B-Tree)
+- `created_at DESC` (B-Tree)
+
+**مثال إدخال**:
+```sql
+INSERT INTO raw_texts (source_type, title, content, url, metadata)
+VALUES (
+  'rss', 
+  'عنوان الخبر', 
+  'محتوى الخبر الكامل...', 
+  'https://example.com/news/1',
+  '{"source": "enab_baladi", "language": "ar"}'
+);
+```
+
+**مثال استعلام**:
+```sql
+-- آخر 50 نص من RSS
+SELECT id, title, LEFT(content, 200), created_at 
+FROM raw_texts 
+WHERE source_type = 'rss' 
+ORDER BY created_at DESC 
+LIMIT 50;
+
+-- البحث في المحتوى
+SELECT * FROM raw_texts 
+WHERE content ILIKE '%سعر الصرف%'
+ORDER BY created_at DESC;
+```
+
+---
+
+### جدول 2: `data_sources` — مصادر البيانات
+
+| العمود | النوع | القيود | الوصف |
+|--------|-------|--------|-------|
+| `id` | `SERIAL` | PRIMARY KEY | معرف تسلسلي |
+| `name` | `VARCHAR(255)` | UNIQUE, NOT NULL | اسم فريد للمصدر |
+| `type` | `VARCHAR(50)` | NOT NULL | نوع: `rss`, `telegram`, `web`, `api` |
+| `url` | `TEXT` | — | رابط المصدر |
+| `is_active` | `BOOLEAN` | DEFAULT TRUE | مفعل أم لا |
+| `config` | `JSONB` | — | إعدادات إضافية |
+| `created_at` | `TIMESTAMP` | DEFAULT NOW | وقت الإنشاء |
+
+**المصادر الافتراضية** (8 مصادر):
+```sql
+INSERT INTO data_sources (name, type, url, is_active) VALUES
+  ('Syria Economy', 'rss', 'https://www.syria.tv/rss', true),
+  ('Al Watan', 'rss', 'https://alwatan.sy/rss', true),
+  ('SP Today', 'web', 'https://sp-today.com', true),
+  ('Telegram SYP', 'telegram', NULL, true),
+  ('Syria Steps', 'rss', 'https://www.syriasteps.com/rss', true),
+  ('Lira Today', 'web', 'https://lfraa.com/', true),
+  ('Cashy', 'web', 'https://cashy.me/', true),
+  ('Gold Price', 'api', 'https://api.gold.org/', true);
+```
+
+---
+
+### جدول 3 (قديم): `sources` — مصادر البيانات (للتوافق)
 
 | العمود | النوع | القيود | الوصف |
 |--------|-------|--------|-------|
@@ -44,7 +116,7 @@ VALUES ('enab_baladi', 'rss', 'https://www.enabbaladi.net/feed', 15);
 
 ---
 
-### جدول 2: `raw_news` — الأخبار الخام
+### جدول 4 (قديم): `raw_news` — الأخبار الخام (للتوافق)
 
 | العمود | النوع | القيود | الوصف |
 |--------|-------|--------|-------|

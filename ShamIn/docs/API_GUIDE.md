@@ -260,6 +260,129 @@ POST /tasks/collect/all
 
 ---
 
+### 4. البيانات المجمعة
+
+#### GET /tasks/data/raw-texts
+جلب النصوص المجمعة من قاعدة البيانات.
+
+**Parameters:**
+| المعامل | النوع | الافتراضي | الوصف |
+|---------|------|-----------|-------|
+| source_type | str | null | نوع المصدر (rss, telegram, web) |
+| limit | int | 100 | عدد السجلات (الحد الأقصى 500) |
+| offset | int | 0 | إزاحة البداية |
+
+**الاستجابة:**
+```json
+{
+  "status": "success",
+  "timestamp": "2026-03-14T10:24:33.568973",
+  "data": [
+    {
+      "id": 119,
+      "source_type": "rss",
+      "title": "عنوان الخبر",
+      "content": "محتوى الخبر...",
+      "url": "https://...",
+      "metadata": {
+        "source": "rt_arabic",
+        "language": "ar",
+        "published_at": "2026-03-13 19:58:45+00:00"
+      },
+      "created_at": "2026-03-14T10:24:17.169225"
+    }
+  ],
+  "pagination": {
+    "total": 119,
+    "limit": 100,
+    "offset": 0,
+    "has_more": true
+  }
+}
+```
+
+---
+
+#### GET /tasks/data/raw-texts/{id}
+جلب نص محدد بالمعرف.
+
+**Parameters:**
+| المعامل | النوع | الوصف |
+|---------|------|-------|
+| id | int | معرف النص |
+
+**الاستجابة:**
+```json
+{
+  "status": "success",
+  "timestamp": "2026-03-14T10:30:00.000000",
+  "data": {
+    "id": 1,
+    "source_type": "rss",
+    "title": "العنوان الكامل",
+    "content": "المحتوى الكامل...",
+    "url": "https://...",
+    "metadata": {...},
+    "created_at": "2026-03-14T10:24:17.000000"
+  }
+}
+```
+
+---
+
+#### GET /tasks/data/search
+البحث في النصوص المجمعة.
+
+**Parameters:**
+| المعامل | النوع | الافتراضي | الوصف |
+|---------|------|-----------|-------|
+| q | str | مطلوب | نص البحث (الحد الأدنى حرفين) |
+| limit | int | 50 | عدد النتائج (الحد الأقصى 100) |
+
+**الاستجابة:**
+```json
+{
+  "status": "success",
+  "timestamp": "2026-03-14T10:35:00.000000",
+  "query": "سعر الصرف",
+  "data": [
+    {
+      "id": 50,
+      "source_type": "rss",
+      "title": "تحليل سعر الصرف",
+      "content": "...",
+      "created_at": "2026-03-14T10:00:00.000000"
+    }
+  ],
+  "count": 15
+}
+```
+
+---
+
+#### GET /tasks/data/stats
+إحصائيات البيانات المجمعة.
+
+**الاستجابة:**
+```json
+{
+  "status": "success",
+  "timestamp": "2026-03-14T10:24:27.068267",
+  "stats": {
+    "total_texts": 119,
+    "by_source": [
+      {"source_type": "rss", "count": 119}
+    ],
+    "by_day": [
+      {"date": "2026-03-14", "count": 119}
+    ],
+    "last_collected": "2026-03-14T10:24:17.169225"
+  }
+}
+```
+
+---
+
 ## رموز الاستجابة
 
 | الرمز | الوصف |
