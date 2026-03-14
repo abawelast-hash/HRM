@@ -71,20 +71,73 @@ services:
       timeout: 5s
       retries: 5
 
+  web:
+    build: .
+    container_name: shamin_web
+    command: python -m uvicorn src.presentation.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - POSTGRES_URL=postgresql://shamin_user:${POSTGRES_PASSWORD}@postgres:5432/shamin_db
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=shamin_org
+      - INFLUXDB_BUCKET=exchange_rates
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    volumes:
+      - .:/app
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    container_name: shamin_dashboard
+    command: streamlit run src/presentation/dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    depends_on:
+      - web
+    environment:
+      - API_URL=http://web:8000
+      - REDIS_URL=redis://redis:6379/0
+      - POSTGRES_URL=postgresql://shamin_user:${POSTGRES_PASSWORD}@postgres:5432/shamin_db
+    volumes:
+      - .:/app
+    restart: unless-stopped
+
   celery_worker:
     build: .
     container_name: shamin_celery_worker
     command: celery -A src.ingestion.scheduler worker --loglevel=info
     depends_on:
-      - redis
-      - postgres
-      - influxdb
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
     environment:
       - REDIS_URL=redis://redis:6379/0
       - POSTGRES_URL=postgresql://shamin_user:${POSTGRES_PASSWORD}@postgres:5432/shamin_db
       - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=shamin_org
+      - INFLUXDB_BUCKET=exchange_rates
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
     volumes:
       - .:/app
+    restart: unless-stopped
 
   celery_beat:
     build: .
@@ -97,6 +150,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
     volumes:
       - .:/app
+    restart: unless-stopped
 
 volumes:
   postgres_data:
